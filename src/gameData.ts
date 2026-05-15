@@ -4,145 +4,139 @@ const W: TileType = 'wall';
 const F: TileType = 'floor';
 const S: TileType = 'stairs';
 
-// 4 dungeon configurations (card's 4 orientations)
+// ── 4 configurations (5×5) based on the physical card ───────────────────────
+//
+// Config 0 & 1 = front of card (stone-wall obstacles), two orientations
+// Config 2 & 3 = back of card (pit-style obstacles), two orientations
+//
+// Legend: S = stairs (adventurer start), W = wall, F = floor
+
 export const DUNGEON_CONFIGS: DungeonConfig[] = [
-  // Config 0 — Levels 1–3: simple hall with alcoves
+  // Config 0 — front side, orientation A (levels 1–3)
+  // Adventurer starts bottom-right; monsters spawn top rows
   {
-    rows: 7, cols: 7,
-    adventurerStart: { row: 6, col: 3 },
+    rows: 5, cols: 5,
+    adventurerStart: { row: 4, col: 4 },
     grid: [
-      [W, W, W, W, W, W, W],
-      [W, F, F, W, F, F, W],
-      [W, F, W, W, W, F, W],
-      [W, F, F, F, F, F, W],
-      [W, F, W, W, W, F, W],
-      [W, F, F, W, F, F, W],
-      [W, W, W, S, W, W, W],
+      [F, F, F, F, F],
+      [F, W, F, F, F],
+      [F, W, F, F, W],
+      [F, F, F, F, F],
+      [F, F, F, F, S],
     ],
   },
-  // Config 1 — Levels 4–6: cross-shaped
+  // Config 1 — front side, orientation B / rotated 180° (levels 4–6)
+  // (1,1)→(3,3), (2,1)→(2,3), (2,4)→(2,0)
   {
-    rows: 7, cols: 7,
-    adventurerStart: { row: 5, col: 3 },
+    rows: 5, cols: 5,
+    adventurerStart: { row: 4, col: 4 },
     grid: [
-      [W, W, W, F, W, W, W],
-      [W, W, F, F, F, W, W],
-      [W, F, F, F, F, F, W],
-      [F, F, F, F, F, F, F],
-      [W, F, F, F, F, F, W],
-      [W, W, F, S, F, W, W],
-      [W, W, W, F, W, W, W],
+      [F, F, F, F, F],
+      [F, F, F, F, F],
+      [W, F, F, W, F],
+      [F, F, F, W, F],
+      [F, F, F, F, S],
     ],
   },
-  // Config 2 — Levels 7–9: winding corridor
+  // Config 2 — back side, orientation A (levels 7–9)
+  // Pit-style walls; adventurer starts bottom-left
   {
-    rows: 7, cols: 7,
-    adventurerStart: { row: 6, col: 1 },
+    rows: 5, cols: 5,
+    adventurerStart: { row: 4, col: 0 },
     grid: [
-      [W, F, F, F, F, F, W],
-      [W, F, W, W, W, F, W],
-      [W, F, F, F, W, F, W],
-      [W, W, W, F, W, F, W],
-      [W, F, F, F, F, F, W],
-      [W, F, W, W, W, W, W],
-      [W, S, F, F, F, F, W],
+      [F, F, F, F, F],
+      [F, W, F, W, F],
+      [F, W, F, F, F],
+      [F, W, F, F, F],
+      [S, F, F, F, F],
     ],
   },
-  // Config 3 — Levels 10–12: open arena with pillars
+  // Config 3 — back side, orientation B / rotated 180° (levels 10–12)
+  // (1,1)→(3,3), (2,1)→(2,3), (3,1)→(1,3)
   {
-    rows: 7, cols: 7,
-    adventurerStart: { row: 5, col: 3 },
+    rows: 5, cols: 5,
+    adventurerStart: { row: 4, col: 0 },
     grid: [
-      [W, W, W, W, W, W, W],
-      [W, F, F, F, F, F, W],
-      [W, F, W, F, W, F, W],
-      [W, F, F, F, F, F, W],
-      [W, F, W, F, W, F, W],
-      [W, F, F, S, F, F, W],
-      [W, W, W, W, W, W, W],
+      [F, F, F, F, F],
+      [F, F, F, W, F],
+      [F, F, F, W, F],
+      [F, W, F, W, F],
+      [S, F, F, F, F],
     ],
   },
 ];
 
 export const LEVEL_DEFS: LevelDef[] = [
-  // Level 1
+  // ── Levels 1–3  (Config 0, front-A) ───────────────────────────────────────
   {
     configIndex: 0,
-    monsterStats: { type: 'Spider', health: 2, speed: 4, attack: 2, defense: 1, range: 2, count: 2 },
-    monsterStartPositions: [{ row: 1, col: 1 }, { row: 1, col: 5 }],
+    monsterStats: { type: 'Spider',   health: 2, speed: 4, attack: 2, defense: 1, range: 2, count: 2 },
+    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 3 }],
   },
-  // Level 2
   {
     configIndex: 0,
-    monsterStats: { type: 'Spider', health: 2, speed: 4, attack: 3, defense: 1, range: 2, count: 2 },
-    monsterStartPositions: [{ row: 1, col: 1 }, { row: 1, col: 5 }],
+    monsterStats: { type: 'Spider',   health: 2, speed: 4, attack: 3, defense: 1, range: 2, count: 2 },
+    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 4 }],
   },
-  // Level 3
   {
     configIndex: 0,
-    monsterStats: { type: 'Goblin', health: 3, speed: 4, attack: 3, defense: 2, range: 2, count: 3 },
-    monsterStartPositions: [{ row: 1, col: 1 }, { row: 1, col: 5 }, { row: 3, col: 3 }],
+    monsterStats: { type: 'Goblin',   health: 3, speed: 4, attack: 3, defense: 2, range: 2, count: 3 },
+    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 2 }, { row: 0, col: 4 }],
   },
-  // Level 4
+  // ── Levels 4–6  (Config 1, front-B) ───────────────────────────────────────
   {
     configIndex: 1,
-    monsterStats: { type: 'Goblin', health: 3, speed: 4, attack: 3, defense: 2, range: 3, count: 2 },
-    monsterStartPositions: [{ row: 0, col: 3 }, { row: 3, col: 0 }],
+    monsterStats: { type: 'Goblin',   health: 3, speed: 4, attack: 3, defense: 2, range: 3, count: 2 },
+    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 4 }],
   },
-  // Level 5
   {
     configIndex: 1,
     monsterStats: { type: 'Skeleton', health: 3, speed: 4, attack: 4, defense: 2, range: 3, count: 3 },
-    monsterStartPositions: [{ row: 0, col: 3 }, { row: 3, col: 0 }, { row: 3, col: 6 }],
+    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 2 }, { row: 0, col: 4 }],
   },
-  // Level 6
   {
     configIndex: 1,
     monsterStats: { type: 'Skeleton', health: 4, speed: 5, attack: 4, defense: 2, range: 3, count: 3 },
-    monsterStartPositions: [{ row: 0, col: 3 }, { row: 1, col: 2 }, { row: 1, col: 4 }],
+    monsterStartPositions: [{ row: 0, col: 0 }, { row: 1, col: 4 }, { row: 0, col: 4 }],
   },
-  // Level 7
+  // ── Levels 7–9  (Config 2, back-A) ────────────────────────────────────────
   {
     configIndex: 2,
-    monsterStats: { type: 'Orc', health: 4, speed: 4, attack: 4, defense: 3, range: 2, count: 2 },
-    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 5 }],
+    monsterStats: { type: 'Orc',      health: 4, speed: 4, attack: 4, defense: 3, range: 2, count: 2 },
+    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 3 }],
   },
-  // Level 8
   {
     configIndex: 2,
-    monsterStats: { type: 'Orc', health: 4, speed: 5, attack: 5, defense: 3, range: 2, count: 3 },
-    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 4 }, { row: 2, col: 5 }],
+    monsterStats: { type: 'Orc',      health: 4, speed: 5, attack: 5, defense: 3, range: 2, count: 3 },
+    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 2 }, { row: 0, col: 4 }],
   },
-  // Level 9
   {
     configIndex: 2,
-    monsterStats: { type: 'Troll', health: 5, speed: 4, attack: 5, defense: 3, range: 3, count: 2 },
-    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 5 }],
+    monsterStats: { type: 'Troll',    health: 5, speed: 4, attack: 5, defense: 3, range: 3, count: 2 },
+    monsterStartPositions: [{ row: 0, col: 2 }, { row: 0, col: 4 }],
   },
-  // Level 10
+  // ── Levels 10–12 (Config 3, back-B) ───────────────────────────────────────
   {
     configIndex: 3,
-    monsterStats: { type: 'Troll', health: 5, speed: 5, attack: 6, defense: 3, range: 3, count: 3 },
-    monsterStartPositions: [{ row: 1, col: 1 }, { row: 1, col: 5 }, { row: 3, col: 3 }],
+    monsterStats: { type: 'Troll',    health: 5, speed: 5, attack: 6, defense: 3, range: 3, count: 3 },
+    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 4 }, { row: 1, col: 4 }],
   },
-  // Level 11
   {
     configIndex: 3,
-    monsterStats: { type: 'Dragon', health: 5, speed: 5, attack: 6, defense: 4, range: 4, count: 2 },
-    monsterStartPositions: [{ row: 1, col: 1 }, { row: 1, col: 5 }],
+    monsterStats: { type: 'Dragon',   health: 5, speed: 5, attack: 6, defense: 4, range: 4, count: 2 },
+    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 4 }],
   },
-  // Level 12 — Final Boss
   {
     configIndex: 3,
     monsterStats: { type: 'Lich King', health: 6, speed: 5, attack: 7, defense: 4, range: 4, count: 3 },
-    monsterStartPositions: [{ row: 1, col: 1 }, { row: 1, col: 3 }, { row: 1, col: 5 }],
+    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 2 }, { row: 0, col: 4 }],
   },
 ];
 
 export const CLASS_DESCRIPTIONS: Record<string, string> = {
-  none: 'Standard adventurer. No special abilities.',
-  paladin: 'Once per level, keep one Energy die from the previous turn.',
+  none:      'Standard adventurer. No special abilities.',
+  paladin:   'Once per level, keep one Energy die from the previous turn.',
   barbarian: 'Once per turn, reroll all Energy dice when at 1 Health.',
-  ranger: 'Once per level, assign an Energy die to Range instead of Speed/Attack/Defense.',
-  wizard: 'Once per level, reroll all Energy dice.',
+  ranger:    'Once per level, assign an Energy die to Range instead.',
+  wizard:    'Once per level, reroll all Energy dice.',
 };

@@ -13,10 +13,6 @@ export interface Monster {
   type: string;
 }
 
-export interface LevelMonsterDef {
-  startPos: Pos;
-}
-
 export interface MonsterStats {
   speed: number;
   attack: number;
@@ -46,6 +42,12 @@ export interface AssignedEnergy {
   defense: number | null;
 }
 
+export interface MovementArrow {
+  id: number;
+  from: Pos;
+  to: Pos;
+}
+
 export type CharacterClass = 'none' | 'paladin' | 'barbarian' | 'ranger' | 'wizard';
 
 export type Phase =
@@ -54,6 +56,7 @@ export type Phase =
   | 'energyAssign'
   | 'adventurer'
   | 'monsterMove'
+  | 'monsterMoveAnimate'
   | 'monsterAttack'
   | 'levelEnd'
   | 'gameOver'
@@ -85,5 +88,5 @@ export interface GameState {
   prevEnergyDice: number[] | null;
   log: string[];
   selectedDie: number | null;
-  pendingMoves: Pos[];
+  pendingMovements: MovementArrow[];
 }

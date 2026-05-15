@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { GameState, Phase, CharacterClass, Pos, BaseStats, DungeonConfig } from './types';
+import type { GameState, Phase, CharacterClass, Pos, BaseStats, DungeonConfig, MovementArrow } from './types';
 import { DUNGEON_CONFIGS, LEVEL_DEFS, CLASS_DESCRIPTIONS } from './gameData';
 import {
   rollDice,
@@ -18,13 +18,6 @@ const INITIAL_STATS: BaseStats = { speed: 1, attack: 1, defense: 1, range: 2 };
 function buildLevelState(level: number, characterClass: CharacterClass, baseStats: BaseStats, health: number): GameState {
   const def = LEVEL_DEFS[level - 1];
   const config = DUNGEON_CONFIGS[def.configIndex];
-  const monsters = def.monsterStartPositions.map((pos, idx) => ({
-    id: idx + 1,
-    pos: { ...pos },
-    health: def.monsterStats.health,
-    maxHealth: def.monsterStats.health,
-    type: def.monsterStats.type,
-  }));
   return {
     phase: 'energy',
     level,
@@ -36,7 +29,11 @@ function buildLevelState(level: number, characterClass: CharacterClass, baseStat
     totalStats: { ...baseStats },
     spentSpeed: 0,
     spentAttack: 0,
-    monsters,
+    monsters: def.monsterStartPositions.map((pos, idx) => ({
+      id: idx + 1, pos: { ...pos },
+      health: def.monsterStats.health, maxHealth: def.monsterStats.health,
+      type: def.monsterStats.type,
+    })),
     monsterStats: def.monsterStats,
     characterClass,
     classAbilityUsed: false,
@@ -44,7 +41,7 @@ function buildLevelState(level: number, characterClass: CharacterClass, baseStat
     prevEnergyDice: null,
     log: [`Level ${level}: ${def.monsterStats.type}s appear!`],
     selectedDie: null,
-    pendingMoves: [],
+    pendingMovements: [],
   };
 }
 
@@ -114,8 +111,7 @@ export default function App() {
       return {
         ...prev, assignedEnergy: newAssigned, totalStats: total,
         phase: done ? ('adventurer' as Phase) : prev.phase,
-        spentSpeed: done ? 0 : prev.spentSpeed,
-        spentAttack: done ? 0 : prev.spentAttack,
+        spentSpeed: done ? 0 : prev.spentSpeed, spentAttack: done ? 0 : prev.spentAttack,
         selectedDie: null, barbarianRerolled: false,
         log: done ? [...prev.log.slice(-20), `Spd ${total.speed}  Atk ${total.attack}  Def ${total.defense}`] : [...prev.log.slice(-20), `→ ${slot}: ${dieVal}`],
       };
@@ -156,12 +152,33 @@ export default function App() {
     setGameState(prev => prev && prev.phase === 'adventurer' ? { ...prev, phase: 'monsterMove', log: [...prev.log.slice(-20), 'Monsters move…'] } : prev);
   }, []);
 
-  const runMonsterMove = useCallback(() => {
+  // Compute movements and store as arrows — do NOT apply yet
+  const computeMonsterMove = useCallback(() => {
     setGameState(prev => {
       if (!prev || prev.phase !== 'monsterMove') return prev;
       const config = DUNGEON_CONFIGS[LEVEL_DEFS[prev.level - 1].configIndex];
-      const moved = moveMonsters(prev.monsters, prev.adventurerPos, config, prev.monsterStats.speed, prev.monsterStats.range);
-      return { ...prev, monsters: moved, phase: 'monsterAttack', log: [...prev.log.slice(-20), 'Monsters repositioned.'] };
+      const movedMonsters = moveMonsters(prev.monsters, prev.adventurerPos, config, prev.monsterStats.speed, prev.monsterStats.range);
+      const arrows: MovementArrow[] = prev.monsters
+        .map(m => ({ id: m.id, from: m.pos, to: movedMonsters.find(nm => nm.id === m.id)!.pos }))
+        .filter(a => a.from.row !== a.to.row || a.from.col !== a.to.col);
+      return {
+        ...prev,
+        phase: 'monsterMoveAnimate',
+        pendingMovements: arrows,
+        log: [...prev.log.slice(-20), arrows.length ? `${arrows.length} monster(s) move.` : 'Monsters hold position.'],
+      };
+    });
+  }, []);
+
+  // Apply pending movements
+  const confirmMonsterMove = useCallback(() => {
+    setGameState(prev => {
+      if (!prev || prev.phase !== 'monsterMoveAnimate') return prev;
+      const newMonsters = prev.monsters.map(m => {
+        const mv = prev.pendingMovements.find(a => a.id === m.id);
+        return mv ? { ...m, pos: mv.to } : m;
+      });
+      return { ...prev, monsters: newMonsters, pendingMovements: [], phase: 'monsterAttack', log: [...prev.log.slice(-20), 'Monsters repositioned.'] };
     });
   }, []);
 
@@ -194,7 +211,7 @@ export default function App() {
   if (screen === 'classSelect') return <ClassSelectScreen selected={characterClass} onSelect={setCharacterClass} onConfirm={() => startGame(characterClass)} />;
   if (!gameState) return null;
 
-  return <GameScreen state={gameState} rollEnergy={rollEnergy} useWizardReroll={useWizardReroll} usePaladinKeep={usePaladinKeep} useBarbarianReroll={useBarbarianReroll} selectDie={selectDie} assignDie={assignDie} handleTileClick={handleTileClick} handleMonsterClick={handleMonsterClick} endAdventurerPhase={endAdventurerPhase} runMonsterMove={runMonsterMove} runMonsterAttack={runMonsterAttack} chooseLevelReward={chooseLevelReward} onRestart={() => setScreen('title')} />;
+  return <GameScreen state={gameState} rollEnergy={rollEnergy} useWizardReroll={useWizardReroll} usePaladinKeep={usePaladinKeep} useBarbarianReroll={useBarbarianReroll} selectDie={selectDie} assignDie={assignDie} handleTileClick={handleTileClick} handleMonsterClick={handleMonsterClick} endAdventurerPhase={endAdventurerPhase} computeMonsterMove={computeMonsterMove} confirmMonsterMove={confirmMonsterMove} runMonsterAttack={runMonsterAttack} chooseLevelReward={chooseLevelReward} onRestart={() => setScreen('title')} />;
 }
 
 // ── Shared constants ──────────────────────────────────────────────────────────
@@ -204,11 +221,11 @@ const CLASS_ICONS: Record<CharacterClass, string> = { none: '🗡️', paladin: 
 const CLASS_NAMES: Record<CharacterClass, string> = { none: 'Adventurer', paladin: 'Paladin', barbarian: 'Barbarian', ranger: 'Ranger', wizard: 'Wizard' };
 const MONSTER_EMOJI: Record<string, string> = { Spider: '🕷️', Goblin: '👺', Skeleton: '💀', Orc: '👹', Troll: '🧌', Dragon: '🐉', 'Lich King': '☠️' };
 const DIE_FACES = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-
 const PHASE_LABELS: Record<Phase, string> = {
   classSelect: 'Class', energy: 'Energy', energyAssign: 'Assign',
   adventurer: 'Your Turn', monsterMove: 'Monsters Move',
-  monsterAttack: 'Monsters Attack', levelEnd: 'Level Clear', gameOver: 'Game Over', victory: '🏆 Victory',
+  monsterMoveAnimate: 'Preview', monsterAttack: 'Monsters Attack',
+  levelEnd: 'Level Clear', gameOver: 'Game Over', victory: '🏆 Victory',
 };
 
 // ── Title ─────────────────────────────────────────────────────────────────────
@@ -254,7 +271,9 @@ interface GameScreenProps {
   rollEnergy: () => void; useWizardReroll: () => void; usePaladinKeep: () => void; useBarbarianReroll: () => void;
   selectDie: (i: number) => void; assignDie: (slot: 'speed' | 'attack' | 'defense' | 'range') => void;
   handleTileClick: (pos: Pos) => void; handleMonsterClick: (id: number) => void;
-  endAdventurerPhase: () => void; runMonsterMove: () => void; runMonsterAttack: () => void;
+  endAdventurerPhase: () => void;
+  computeMonsterMove: () => void; confirmMonsterMove: () => void;
+  runMonsterAttack: () => void;
   chooseLevelReward: (c: 'heal' | 'speed' | 'attack' | 'defense' | 'range') => void;
   onRestart: () => void;
 }
@@ -300,46 +319,53 @@ function GameScreen(props: GameScreenProps) {
 
   return (
     <div className="game-layout">
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="game-header">
         <span className="level-badge">Lvl {state.level}/12</span>
         <span className={`phase-badge phase-${state.phase}`}>{PHASE_LABELS[state.phase]}</span>
-        <button className="btn-restart" onClick={props.onRestart} title="Restart">✕</button>
+        <button className="btn-restart" onClick={props.onRestart}>✕</button>
       </div>
 
-      {/* ── Adventurer stat bar (top of card) ── */}
+      {/* Adventurer stat bar */}
       <div className="adv-bar">
         <div className="adv-class">{CLASS_ICONS[state.characterClass]}</div>
         <div className="hearts-row">{Array(6).fill(0).map((_, i) => <span key={i} className={i < state.adventurerHealth ? 'heart-full' : 'heart-empty'}>♥</span>)}</div>
-        <StatChip icon="👟" label="SPD" base={state.baseStats.speed} energy={state.assignedEnergy.speed} left={state.phase === 'adventurer' ? speedLeft : null} />
-        <StatChip icon="⚔️" label="ATK" base={state.baseStats.attack} energy={state.assignedEnergy.attack} left={state.phase === 'adventurer' ? attackLeft : null} />
-        <StatChip icon="🛡️" label="DEF" base={state.baseStats.defense} energy={state.assignedEnergy.defense} left={null} />
-        <StatChip icon="🏹" label="RNG" base={state.totalStats.range} energy={null} left={null} />
+        <StatChip label="SPD" base={state.baseStats.speed} energy={state.assignedEnergy.speed} left={state.phase === 'adventurer' ? speedLeft : null} />
+        <StatChip label="ATK" base={state.baseStats.attack} energy={state.assignedEnergy.attack} left={state.phase === 'adventurer' ? attackLeft : null} />
+        <StatChip label="DEF" base={state.baseStats.defense} energy={state.assignedEnergy.defense} left={null} />
+        <StatChip label="RNG" base={state.totalStats.range} energy={null} left={null} />
       </div>
 
-      {/* ── Dungeon grid (center of card) ── */}
+      {/* Dungeon grid with optional arrow overlay */}
       <div className="dungeon-wrapper">
-        <DungeonGrid config={config} state={state} reachable={reachable} attackable={attackable} inRangeMonsters={inRangeMonsters} onTileClick={props.handleTileClick} onMonsterClick={props.handleMonsterClick} />
+        <div className="dungeon-outer">
+          <DungeonGrid config={config} state={state} reachable={reachable} attackable={attackable} inRangeMonsters={inRangeMonsters} onTileClick={props.handleTileClick} onMonsterClick={props.handleMonsterClick} />
+          {state.phase === 'monsterMoveAnimate' && state.pendingMovements.length > 0 && (
+            <MovementArrows movements={state.pendingMovements} cols={config.cols} rows={config.rows} />
+          )}
+        </div>
       </div>
 
-      {/* ── Monster bar (bottom of card) ── */}
+      {/* Monster bar */}
       <div className="monster-bar">
         <div className="monster-bar-icon">{MONSTER_EMOJI[def.monsterStats.type] ?? '👾'}</div>
         <div className="monster-bar-name">{def.monsterStats.type}</div>
-        <MonsterChip label="HP" value={def.monsterStats.health} />
+        <MonsterChip label="HP"  value={def.monsterStats.health} />
         <MonsterChip label="SPD" value={def.monsterStats.speed} />
         <MonsterChip label="ATK" value={def.monsterStats.attack} />
         <MonsterChip label="DEF" value={def.monsterStats.defense} />
         <MonsterChip label="RNG" value={def.monsterStats.range} />
-        <div className="monster-alive">{state.monsters.map(m => <span key={m.id} className={inRangeMonsters.includes(m.id) ? 'alive-dot dot-danger' : 'alive-dot'}>{m.health}</span>)}</div>
+        <div className="monster-alive">
+          {state.monsters.map(m => <span key={m.id} className={`alive-dot ${inRangeMonsters.includes(m.id) ? 'dot-danger' : ''}`}>{m.health}</span>)}
+        </div>
       </div>
 
-      {/* ── Phase controls ── */}
+      {/* Phase controls */}
       <div className="phase-area">
         <PhaseControls {...props} />
       </div>
 
-      {/* ── Log ── */}
+      {/* Log */}
       <div className="log-strip">
         {[...state.log].reverse().slice(0, 5).map((entry, i) => (
           <span key={i} className={`log-item ${entry.startsWith('──') ? 'log-sep' : ''}`}>{entry}</span>
@@ -349,9 +375,52 @@ function GameScreen(props: GameScreenProps) {
   );
 }
 
-// ── Stat chip (top bar) ───────────────────────────────────────────────────────
+// ── Movement Arrows (SVG overlay) ─────────────────────────────────────────────
 
-function StatChip({ label, base, energy, left }: { icon?: string; label: string; base: number; energy: number | null; left: number | null }) {
+function MovementArrows({ movements, cols, rows }: { movements: MovementArrow[]; cols: number; rows: number }) {
+  return (
+    <svg
+      className="movement-svg"
+      viewBox={`0 0 ${cols} ${rows}`}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <marker id="mv-arrow" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+          <polygon points="0,0 4,2 0,4" fill="#ff7700" />
+        </marker>
+      </defs>
+      {movements.map((mv, idx) => {
+        const x1 = mv.from.col + 0.5;
+        const y1 = mv.from.row + 0.5;
+        const x2 = mv.to.col + 0.5;
+        const y2 = mv.to.row + 0.5;
+        const dx = x2 - x1, dy = y2 - y1;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len === 0) return null;
+        const nx = dx / len, ny = dy / len;
+        // start a bit away from center, end before arrowhead
+        const sx = x1 + nx * 0.28, sy = y1 + ny * 0.28;
+        const ex = x2 - nx * 0.22, ey = y2 - ny * 0.22;
+        return (
+          <line
+            key={mv.id}
+            x1={sx} y1={sy} x2={ex} y2={ey}
+            stroke="#ff7700"
+            strokeWidth="0.13"
+            strokeLinecap="round"
+            markerEnd="url(#mv-arrow)"
+            className="mv-line"
+            style={{ animationDelay: `${idx * 80}ms` }}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Stat chip ─────────────────────────────────────────────────────────────────
+
+function StatChip({ label, base, energy, left }: { label: string; base: number; energy: number | null; left: number | null }) {
   const total = base + (energy ?? 0);
   return (
     <div className="stat-chip">
@@ -363,7 +432,7 @@ function StatChip({ label, base, energy, left }: { icon?: string; label: string;
   );
 }
 
-// ── Monster stat chip (bottom bar) ───────────────────────────────────────────
+// ── Monster stat chip ─────────────────────────────────────────────────────────
 
 function MonsterChip({ label, value }: { label: string; value: number }) {
   return (
@@ -388,17 +457,20 @@ function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, on
           const key = `${r},${c}`;
           const isAdv = state.adventurerPos.row === r && state.adventurerPos.col === c;
           const monster = state.monsters.find(m => m.pos.row === r && m.pos.col === c);
-          const isReachable = reachable.has(key);
+          // During animate phase, also highlight destination tiles
+          const isDestination = state.phase === 'monsterMoveAnimate' &&
+            state.pendingMovements.some(a => a.to.row === r && a.to.col === c);
           const isAttackable = monster ? attackable.includes(monster.id) : false;
           const isInRange = monster ? inRangeMonsters.includes(monster.id) : false;
           let cls = `tile tile-${tile}`;
-          if (isReachable) cls += ' tile-reachable';
+          if (reachable.has(key)) cls += ' tile-reachable';
           if (isAttackable) cls += ' tile-attackable';
           if (isInRange) cls += ' tile-in-range';
+          if (isDestination) cls += ' tile-destination';
           return (
             <div key={key} className={cls} onClick={() => {
               if (monster && attackable.includes(monster.id)) onMonsterClick(monster.id);
-              else if (isReachable) onTileClick({ row: r, col: c });
+              else if (reachable.has(key)) onTileClick({ row: r, col: c });
             }}>
               {tile === 'stairs' && !isAdv && <span className="tile-icon">🪜</span>}
               {isAdv && <span className="adv-icon">🧙</span>}
@@ -445,9 +517,9 @@ function PhaseControls(props: GameScreenProps) {
         </div>
         {state.selectedDie !== null && state.energyDice[state.selectedDie] !== -1 && (
           <div className="assign-row">
-            <button className="btn btn-slot" disabled={ae.speed !== null} onClick={() => props.assignDie('speed')}>👟{ae.speed !== null ? ` ✓` : ''}</button>
-            <button className="btn btn-slot" disabled={ae.attack !== null} onClick={() => props.assignDie('attack')}>⚔️{ae.attack !== null ? ` ✓` : ''}</button>
-            <button className="btn btn-slot" disabled={ae.defense !== null} onClick={() => props.assignDie('defense')}>🛡️{ae.defense !== null ? ` ✓` : ''}</button>
+            <button className="btn btn-slot" disabled={ae.speed !== null} onClick={() => props.assignDie('speed')}>👟 SPD{ae.speed !== null ? ' ✓' : ''}</button>
+            <button className="btn btn-slot" disabled={ae.attack !== null} onClick={() => props.assignDie('attack')}>⚔️ ATK{ae.attack !== null ? ' ✓' : ''}</button>
+            <button className="btn btn-slot" disabled={ae.defense !== null} onClick={() => props.assignDie('defense')}>🛡️ DEF{ae.defense !== null ? ' ✓' : ''}</button>
             {state.characterClass === 'ranger' && !state.classAbilityUsed && (
               <button className="btn btn-class" onClick={() => props.assignDie('range')}>🏹+</button>
             )}
@@ -472,8 +544,7 @@ function PhaseControls(props: GameScreenProps) {
     return (
       <div className="controls-inner">
         <div className="action-hint">
-          <span className="hint-move">■ Move</span> 2pts ortho · 3pts diag
-          &nbsp;&nbsp;
+          <span className="hint-move">■ Move</span> 2pts ortho · 3pts diag &nbsp;
           <span className="hint-attack">■ Attack</span> cost {state.monsterStats.defense}
         </div>
         <button className="btn btn-secondary btn-large" onClick={props.endAdventurerPhase}>End Turn →</button>
@@ -485,7 +556,21 @@ function PhaseControls(props: GameScreenProps) {
     return (
       <div className="controls-inner">
         <p className="phase-desc">Monsters move toward max range with LoS.</p>
-        <button className="btn btn-warning btn-large" onClick={props.runMonsterMove}>Resolve Movement →</button>
+        <button className="btn btn-warning btn-large" onClick={props.computeMonsterMove}>Show Moves →</button>
+      </div>
+    );
+  }
+
+  if (state.phase === 'monsterMoveAnimate') {
+    const moved = state.pendingMovements.length;
+    return (
+      <div className="controls-inner">
+        <p className="phase-desc">
+          {moved > 0
+            ? `${moved} monster(s) will move (arrows show destinations).`
+            : 'No monsters can move this turn.'}
+        </p>
+        <button className="btn btn-warning btn-large" onClick={props.confirmMonsterMove}>Confirm Moves →</button>
       </div>
     );
   }
@@ -493,7 +578,7 @@ function PhaseControls(props: GameScreenProps) {
   if (state.phase === 'monsterAttack') {
     return (
       <div className="controls-inner">
-        <p className="phase-desc">Monsters in range attack (total ATK ÷ your DEF).</p>
+        <p className="phase-desc">Monsters in range attack (ATK ÷ DEF = damage).</p>
         <button className="btn btn-danger btn-large" onClick={props.runMonsterAttack}>Resolve Attack →</button>
       </div>
     );
