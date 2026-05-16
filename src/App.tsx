@@ -339,6 +339,10 @@ function GameScreen(props: GameScreenProps) {
       {/* Dungeon grid with optional arrow overlay */}
       <div className="dungeon-wrapper">
         <div className="dungeon-outer">
+          <div
+            className={`card-bg card-bg-${def.configIndex < 2 ? 'front' : 'back'}${def.configIndex === 1 || def.configIndex === 3 ? ' card-bg-flip' : ''}`}
+            style={{ backgroundImage: `url('${import.meta.env.BASE_URL}${def.configIndex < 2 ? 'IMG_2351' : 'IMG_2348'}.jpeg')` }}
+          />
           <DungeonGrid config={config} state={state} reachable={reachable} attackable={attackable} inRangeMonsters={inRangeMonsters} onTileClick={props.handleTileClick} onMonsterClick={props.handleMonsterClick} />
           {state.phase === 'monsterMoveAnimate' && state.pendingMovements.length > 0 && (
             <MovementArrows movements={state.pendingMovements} cols={config.cols} rows={config.rows} />
