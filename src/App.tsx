@@ -124,13 +124,14 @@ export default function App() {
         return { ...prev, baseStats: newBase, energyDice: newDice, classAbilityUsed: true, selectedDie: null, log: [...prev.log.slice(-20), `Ranger: +${dieVal} Range → ${newBase.range}`] };
       }
       if (prev.assignedEnergy[slot] !== null) return prev;
+      const newDice = [...prev.energyDice]; newDice[dieIdx] = -1;
       const newAssigned = { ...prev.assignedEnergy, [slot]: dieVal };
       const count = [newAssigned.speed, newAssigned.attack, newAssigned.defense].filter(v => v !== null).length;
-      const active = prev.energyDice.filter(d => d !== -1).length;
+      const active = newDice.filter(d => d !== -1).length;
       const done = count >= Math.min(3, active);
       const total = done ? computeTotalStats(prev.baseStats, newAssigned) : prev.totalStats;
       return {
-        ...prev, assignedEnergy: newAssigned, totalStats: total,
+        ...prev, energyDice: newDice, assignedEnergy: newAssigned, totalStats: total,
         phase: done ? ('adventurer' as Phase) : prev.phase,
         spentSpeed: done ? 0 : prev.spentSpeed, spentAttack: done ? 0 : prev.spentAttack,
         selectedDie: null, barbarianRerolled: false,
