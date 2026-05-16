@@ -4,60 +4,69 @@ const W: TileType = 'wall';
 const F: TileType = 'floor';
 const S: TileType = 'stairs';
 
-// ── 4 configurations (5×5) based on the physical card ───────────────────────
+// ── 4 configurations (5×5) matching the physical card ───────────────────────
 //
 // Config 0 & 1 = front of card (stone-wall obstacles), two orientations
 // Config 2 & 3 = back of card (pit-style obstacles), two orientations
 //
-// Legend: S = stairs (adventurer start), W = wall, F = floor
+// Config 0: Dragon    (levels  4, 8, 12) — front side, right-side up
+// Config 1: Skeleton  (levels  2, 9, 10) — front side, rotated 180°
+// Config 2: Goblin    (levels  3, 7, 11) — back side, right-side up
+// Config 3: Spider    (levels  1, 5,  6) — back side, rotated 180°
+//
+// S = stairs (adventurer start or exit), W = wall, F = floor
 
 export const DUNGEON_CONFIGS: DungeonConfig[] = [
-  // Config 0 — front side, orientation A (levels 1–3)
-  // Adventurer starts bottom-right; monsters spawn top rows
+  // Config 0 — front side, Dragon orientation (levels 4, 8, 12)
+  // Adventurer starts bottom-right; exit top-left
+  // Walls: (1,1), (2,1), (2,4)
   {
     rows: 5, cols: 5,
     adventurerStart: { row: 4, col: 4 },
     grid: [
-      [F, F, F, F, F],
+      [S, F, F, F, F],
       [F, W, F, F, F],
       [F, W, F, F, W],
       [F, F, F, F, F],
       [F, F, F, F, S],
     ],
   },
-  // Config 1 — front side, orientation B / rotated 180° (levels 4–6)
-  // (1,1)→(3,3), (2,1)→(2,3), (2,4)→(2,0)
+  // Config 1 — front side, Skeleton orientation — rotated 180° of Config 0 (levels 2, 9, 10)
+  // Adventurer starts bottom-right; exit top-left
+  // Walls at rotated positions: (2,0), (2,3), (3,3)
   {
     rows: 5, cols: 5,
     adventurerStart: { row: 4, col: 4 },
     grid: [
-      [F, F, F, F, F],
+      [S, F, F, F, F],
       [F, F, F, F, F],
       [W, F, F, W, F],
       [F, F, F, W, F],
       [F, F, F, F, S],
     ],
   },
-  // Config 2 — back side, orientation A (levels 7–9)
-  // Pit-style walls; adventurer starts bottom-left
+  // Config 2 — back side, Goblin orientation (levels 3, 7, 11)
+  // Adventurer starts bottom-left; exit top-right
+  // Walls: (1,1), (1,3), (2,1), (3,1)
   {
     rows: 5, cols: 5,
     adventurerStart: { row: 4, col: 0 },
     grid: [
-      [F, F, F, F, F],
+      [F, F, F, F, S],
       [F, W, F, W, F],
       [F, W, F, F, F],
       [F, W, F, F, F],
       [S, F, F, F, F],
     ],
   },
-  // Config 3 — back side, orientation B / rotated 180° (levels 10–12)
-  // (1,1)→(3,3), (2,1)→(2,3), (3,1)→(1,3)
+  // Config 3 — back side, Spider orientation — rotated 180° of Config 2 (levels 1, 5, 6)
+  // Adventurer starts bottom-left; exit top-right
+  // Walls at rotated positions: (1,3), (2,3), (3,1), (3,3)
   {
     rows: 5, cols: 5,
     adventurerStart: { row: 4, col: 0 },
     grid: [
-      [F, F, F, F, F],
+      [F, F, F, F, S],
       [F, F, F, W, F],
       [F, F, F, W, F],
       [F, W, F, W, F],
@@ -66,70 +75,84 @@ export const DUNGEON_CONFIGS: DungeonConfig[] = [
   },
 ];
 
+// Monster stats from the physical card images
+const SPIDER_STATS   = { type: 'Spider',   health: 2, speed: 5, attack: 4, defense: 4, range: 3 };
+const SKELETON_STATS = { type: 'Skeleton', health: 3, speed: 4, attack: 5, defense: 4, range: 4 };
+const GOBLIN_STATS   = { type: 'Goblin',   health: 5, speed: 3, attack: 7, defense: 7, range: 2 };
+const DRAGON_STATS   = { type: 'Dragon',   health: 5, speed: 5, attack: 5, defense: 5, range: 5 };
+
 export const LEVEL_DEFS: LevelDef[] = [
-  // ── Levels 1–3  (Config 0, front-A) ───────────────────────────────────────
-  {
-    configIndex: 0,
-    monsterStats: { type: 'Spider',   health: 2, speed: 4, attack: 2, defense: 1, range: 2, count: 2 },
-    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 3 }],
-  },
-  {
-    configIndex: 0,
-    monsterStats: { type: 'Spider',   health: 2, speed: 4, attack: 3, defense: 1, range: 2, count: 2 },
-    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 4 }],
-  },
-  {
-    configIndex: 0,
-    monsterStats: { type: 'Goblin',   health: 3, speed: 4, attack: 3, defense: 2, range: 2, count: 3 },
-    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 2 }, { row: 0, col: 4 }],
-  },
-  // ── Levels 4–6  (Config 1, front-B) ───────────────────────────────────────
-  {
-    configIndex: 1,
-    monsterStats: { type: 'Goblin',   health: 3, speed: 4, attack: 3, defense: 2, range: 3, count: 2 },
-    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 4 }],
-  },
-  {
-    configIndex: 1,
-    monsterStats: { type: 'Skeleton', health: 3, speed: 4, attack: 4, defense: 2, range: 3, count: 3 },
-    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 2 }, { row: 0, col: 4 }],
-  },
-  {
-    configIndex: 1,
-    monsterStats: { type: 'Skeleton', health: 4, speed: 5, attack: 4, defense: 2, range: 3, count: 3 },
-    monsterStartPositions: [{ row: 0, col: 0 }, { row: 1, col: 4 }, { row: 0, col: 4 }],
-  },
-  // ── Levels 7–9  (Config 2, back-A) ────────────────────────────────────────
-  {
-    configIndex: 2,
-    monsterStats: { type: 'Orc',      health: 4, speed: 4, attack: 4, defense: 3, range: 2, count: 2 },
-    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 3 }],
-  },
-  {
-    configIndex: 2,
-    monsterStats: { type: 'Orc',      health: 4, speed: 5, attack: 5, defense: 3, range: 2, count: 3 },
-    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 2 }, { row: 0, col: 4 }],
-  },
-  {
-    configIndex: 2,
-    monsterStats: { type: 'Troll',    health: 5, speed: 4, attack: 5, defense: 3, range: 3, count: 2 },
-    monsterStartPositions: [{ row: 0, col: 2 }, { row: 0, col: 4 }],
-  },
-  // ── Levels 10–12 (Config 3, back-B) ───────────────────────────────────────
+  // ── Level 1: Spider × 2 (Config 3) ────────────────────────────────────────
   {
     configIndex: 3,
-    monsterStats: { type: 'Troll',    health: 5, speed: 5, attack: 6, defense: 3, range: 3, count: 3 },
-    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 4 }, { row: 1, col: 4 }],
+    monsterStats: { ...SPIDER_STATS, count: 2 },
+    monsterStartPositions: [{ row: 1, col: 4 }, { row: 0, col: 2 }],
   },
+  // ── Level 2: Skeleton × 2 (Config 1) ──────────────────────────────────────
+  {
+    configIndex: 1,
+    monsterStats: { ...SKELETON_STATS, count: 2 },
+    monsterStartPositions: [{ row: 1, col: 0 }, { row: 0, col: 1 }],
+  },
+  // ── Level 3: Goblin × 1 (Config 2) ────────────────────────────────────────
+  {
+    configIndex: 2,
+    monsterStats: { ...GOBLIN_STATS, count: 1 },
+    monsterStartPositions: [{ row: 1, col: 4 }],
+  },
+  // ── Level 4: Dragon × 1 (Config 0) ────────────────────────────────────────
+  {
+    configIndex: 0,
+    monsterStats: { ...DRAGON_STATS, count: 1 },
+    monsterStartPositions: [{ row: 0, col: 1 }],
+  },
+  // ── Level 5: Spider × 2 (Config 3) ────────────────────────────────────────
   {
     configIndex: 3,
-    monsterStats: { type: 'Dragon',   health: 5, speed: 5, attack: 6, defense: 4, range: 4, count: 2 },
-    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 4 }],
+    monsterStats: { ...SPIDER_STATS, count: 2 },
+    monsterStartPositions: [{ row: 3, col: 4 }, { row: 0, col: 1 }],
   },
+  // ── Level 6: Spider × 3 (Config 3) ────────────────────────────────────────
   {
     configIndex: 3,
-    monsterStats: { type: 'Lich King', health: 6, speed: 5, attack: 7, defense: 4, range: 4, count: 3 },
-    monsterStartPositions: [{ row: 0, col: 0 }, { row: 0, col: 2 }, { row: 0, col: 4 }],
+    monsterStats: { ...SPIDER_STATS, count: 3 },
+    monsterStartPositions: [{ row: 2, col: 4 }, { row: 1, col: 2 }, { row: 0, col: 0 }],
+  },
+  // ── Level 7: Goblin × 2 (Config 2) ────────────────────────────────────────
+  {
+    configIndex: 2,
+    monsterStats: { ...GOBLIN_STATS, count: 2 },
+    monsterStartPositions: [{ row: 1, col: 2 }, { row: 3, col: 4 }],
+  },
+  // ── Level 8: Dragon × 2 (Config 0) ────────────────────────────────────────
+  {
+    configIndex: 0,
+    monsterStats: { ...DRAGON_STATS, count: 2 },
+    monsterStartPositions: [{ row: 0, col: 3 }, { row: 4, col: 1 }],
+  },
+  // ── Level 9: Skeleton × 2 (Config 1) ──────────────────────────────────────
+  {
+    configIndex: 1,
+    monsterStats: { ...SKELETON_STATS, count: 2 },
+    monsterStartPositions: [{ row: 4, col: 0 }, { row: 1, col: 1 }],
+  },
+  // ── Level 10: Skeleton × 3 (Config 1) ─────────────────────────────────────
+  {
+    configIndex: 1,
+    monsterStats: { ...SKELETON_STATS, count: 3 },
+    monsterStartPositions: [{ row: 3, col: 0 }, { row: 2, col: 1 }, { row: 0, col: 4 }],
+  },
+  // ── Level 11: Goblin × 3 (Config 2) ───────────────────────────────────────
+  {
+    configIndex: 2,
+    monsterStats: { ...GOBLIN_STATS, count: 3 },
+    monsterStartPositions: [{ row: 0, col: 1 }, { row: 0, col: 3 }, { row: 2, col: 4 }],
+  },
+  // ── Level 12: Dragon × 3 (Config 0) ───────────────────────────────────────
+  {
+    configIndex: 0,
+    monsterStats: { ...DRAGON_STATS, count: 3 },
+    monsterStartPositions: [{ row: 1, col: 0 }, { row: 1, col: 2 }, { row: 3, col: 0 }],
   },
 ];
 
