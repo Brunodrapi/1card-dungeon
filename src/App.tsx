@@ -350,17 +350,16 @@ function GameScreen(props: GameScreenProps) {
         </div>
       </div>
 
-      {/* Monster bar */}
-      <div className="monster-bar">
-        <div className="monster-bar-icon">{MONSTER_EMOJI[def.monsterStats.type] ?? '👾'}</div>
-        <div className="monster-bar-name">{def.monsterStats.type}</div>
-        <MonsterChip label="HP"  value={def.monsterStats.health} />
-        <MonsterChip label="SPD" value={def.monsterStats.speed} />
-        <MonsterChip label="ATK" value={def.monsterStats.attack} />
-        <MonsterChip label="DEF" value={def.monsterStats.defense} />
-        <MonsterChip label="RNG" value={def.monsterStats.range} />
-        <div className="monster-alive">
-          {state.monsters.map(m => <span key={m.id} className={`alive-dot ${inRangeMonsters.includes(m.id) ? 'dot-danger' : ''}`}>{m.health}</span>)}
+      {/* Monster section — card image strip (bottom of card, rotated for configs 1 & 3) */}
+      <div className="monster-strip-wrap">
+        <div
+          className={`monster-strip-bg monster-strip-${def.configIndex < 2 ? 'front' : 'back'}${def.configIndex === 1 || def.configIndex === 3 ? ' monster-strip-flip' : ''}`}
+          style={{ backgroundImage: `url('${import.meta.env.BASE_URL}${def.configIndex < 2 ? 'IMG_2351' : 'IMG_2348'}.jpeg')` }}
+        />
+        <div className="monster-strip-overlay">
+          <div className="monster-alive">
+            {state.monsters.map(m => <span key={m.id} className={`alive-dot ${inRangeMonsters.includes(m.id) ? 'dot-danger' : ''}`}>{m.health}</span>)}
+          </div>
         </div>
       </div>
 
@@ -436,16 +435,6 @@ function StatChip({ label, base, energy, left }: { label: string; base: number; 
   );
 }
 
-// ── Monster stat chip ─────────────────────────────────────────────────────────
-
-function MonsterChip({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="monster-chip">
-      <div className="monster-chip-val">{value}</div>
-      <div className="monster-chip-label">{label}</div>
-    </div>
-  );
-}
 
 // ── Dungeon Grid ──────────────────────────────────────────────────────────────
 
