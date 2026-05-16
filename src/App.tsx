@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { GameState, Phase, CharacterClass, Pos, BaseStats, DungeonConfig, MovementArrow } from './types';
 import { DUNGEON_CONFIGS, LEVEL_DEFS, CLASS_DESCRIPTIONS } from './gameData';
 import {
@@ -12,6 +12,17 @@ import {
   hasLoS,
 } from './gameLogic';
 import './App.css';
+
+// ── Score persistence ─────────────────────────────────────────────────────────
+interface GameRecord { date: string; cls: CharacterClass; level: number; won: boolean; }
+const SCORES_KEY = '1cd-scores';
+function loadScores(): GameRecord[] {
+  try { return JSON.parse(localStorage.getItem(SCORES_KEY) ?? '[]'); } catch { return []; }
+}
+function saveRecord(r: GameRecord) {
+  const list = loadScores(); list.unshift(r);
+  localStorage.setItem(SCORES_KEY, JSON.stringify(list.slice(0, 20)));
+}
 
 const INITIAL_STATS: BaseStats = { speed: 1, attack: 1, defense: 1, range: 2 };
 
@@ -49,6 +60,16 @@ export default function App() {
   const [screen, setScreen] = useState<'title' | 'classSelect' | 'game'>('title');
   const [characterClass, setCharacterClass] = useState<CharacterClass>('none');
   const [gameState, setGameState] = useState<GameState | null>(null);
+
+  const scoreRecorded = useRef(false);
+  useEffect(() => {
+    if (!gameState) { scoreRecorded.current = false; return; }
+    if (scoreRecorded.current) return;
+    if (gameState.phase === 'gameOver' || gameState.phase === 'victory') {
+      scoreRecorded.current = true;
+      saveRecord({ date: new Date().toISOString(), cls: gameState.characterClass, level: gameState.level, won: gameState.phase === 'victory' });
+    }
+  }, [gameState]);
 
   const startGame = useCallback((cls: CharacterClass) => {
     setGameState(buildLevelState(1, cls, { ...INITIAL_STATS }, 6));
@@ -231,6 +252,7 @@ const PHASE_LABELS: Record<Phase, string> = {
 // ── Title ─────────────────────────────────────────────────────────────────────
 
 function TitleScreen({ onStart }: { onStart: () => void }) {
+  const scores = loadScores().slice(0, 5);
   return (
     <div className="screen title-screen">
       <div className="title-content">
@@ -238,6 +260,19 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
         <h1>1 Card Dungeon</h1>
         <p className="subtitle">Solo dungeon crawl · 12 levels</p>
         <button className="btn btn-primary btn-large" onClick={onStart}>Begin Adventure</button>
+        {scores.length > 0 && (
+          <div className="score-list">
+            <div className="score-heading">Recent runs</div>
+            {scores.map((r, i) => (
+              <div key={i} className={`score-row${r.won ? ' score-won' : ''}`}>
+                <span className="score-icon">{CLASS_ICONS[r.cls]}</span>
+                <span className="score-name">{CLASS_NAMES[r.cls]}</span>
+                <span className="score-result">{r.won ? '🏆 Victory' : `Lvl ${r.level}`}</span>
+                <span className="score-date">{new Date(r.date).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <p className="credit">Designed by Barny Skinner · Little Rocket Games</p>
       </div>
     </div>
@@ -336,8 +371,8 @@ function GameScreen(props: GameScreenProps) {
         <StatChip label="RNG" base={state.totalStats.range} energy={null} left={null} />
       </div>
 
-      {/* Dungeon grid with optional arrow overlay */}
-      <div className="dungeon-wrapper">
+      {/* Card zone: dungeon grid + monster strip, joined with no gap */}
+      <div className="card-zone">
         <div className="dungeon-outer">
           <div
             className={`card-bg card-bg-${def.configIndex < 2 ? 'front' : 'back'}${def.configIndex === 1 || def.configIndex === 3 ? ' card-bg-flip' : ''}`}
@@ -348,17 +383,16 @@ function GameScreen(props: GameScreenProps) {
             <MovementArrows movements={state.pendingMovements} cols={config.cols} rows={config.rows} />
           )}
         </div>
-      </div>
-
-      {/* Monster section — card image strip (bottom of card, rotated for configs 1 & 3) */}
-      <div className="monster-strip-wrap">
-        <div
-          className={`monster-strip-bg monster-strip-${def.configIndex < 2 ? 'front' : 'back'}${def.configIndex === 1 || def.configIndex === 3 ? ' monster-strip-flip' : ''}`}
-          style={{ backgroundImage: `url('${import.meta.env.BASE_URL}${def.configIndex < 2 ? 'IMG_2351' : 'IMG_2348'}.jpeg')` }}
-        />
-        <div className="monster-strip-overlay">
-          <div className="monster-alive">
-            {state.monsters.map(m => <span key={m.id} className={`alive-dot ${inRangeMonsters.includes(m.id) ? 'dot-danger' : ''}`}>{m.health}</span>)}
+        {/* Monster stats strip — bottom of card photo */}
+        <div className="monster-strip-wrap">
+          <div
+            className={`monster-strip-bg monster-strip-${def.configIndex < 2 ? 'front' : 'back'}${def.configIndex === 1 || def.configIndex === 3 ? ' monster-strip-flip' : ''}`}
+            style={{ backgroundImage: `url('${import.meta.env.BASE_URL}${def.configIndex < 2 ? 'IMG_2351' : 'IMG_2348'}.jpeg')` }}
+          />
+          <div className="monster-strip-overlay">
+            <div className="monster-alive">
+              {state.monsters.map(m => <span key={m.id} className={`alive-dot ${inRangeMonsters.includes(m.id) ? 'dot-danger' : ''}`}>{m.health}</span>)}
+            </div>
           </div>
         </div>
       </div>
@@ -469,7 +503,7 @@ function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, on
               {isAdv && <span className="adv-icon">🧙</span>}
               {monster && (
                 <div className="monster-token">
-                  <span>{MONSTER_EMOJI[monster.type] ?? '👾'}</span>
+                  <span className="monster-emoji">{MONSTER_EMOJI[monster.type] ?? '👾'}</span>
                   <span className="monster-hp">{monster.health}</span>
                 </div>
               )}
