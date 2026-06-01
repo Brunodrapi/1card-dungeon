@@ -194,7 +194,9 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .tile-destination { background: rgba(200, 120, 0, 0.35); border: 1.5px dashed var(--orange); }
 .tile-icon { font-size: inherit; }
 .adv-icon {
-  font-size: clamp(.9rem, 3.5vw, 1.7rem);
+  width: 85%;
+  height: 85%;
+  object-fit: contain;
   filter: drop-shadow(0 0 6px rgba(200,168,75,1)) drop-shadow(0 1px 2px #000);
 }
 .monster-token {

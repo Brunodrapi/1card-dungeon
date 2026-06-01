@@ -12,6 +12,7 @@ import {
   hasLoS,
 } from './gameLogic';
 import './App.css';
+import heroImg from './assets/869D39DA-CA85-45E0-91D4-B498B377CBB3.png';
 
 // ── Score persistence ─────────────────────────────────────────────────────────
 interface GameRecord { date: string; cls: CharacterClass; level: number; won: boolean; }
@@ -501,7 +502,7 @@ function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, on
               else if (reachable.has(key)) onTileClick({ row: r, col: c });
             }}>
               {tile === 'stairs' && !isAdv && <span className="tile-icon">🪜</span>}
-              {isAdv && <span className="adv-icon">🧙</span>}
+              {isAdv && <img src={heroImg} className="adv-icon" alt="adventurer" />}
               {monster && (
                 <div className="monster-token">
                   <span className="monster-emoji">{MONSTER_EMOJI[monster.type] ?? '👾'}</span>
