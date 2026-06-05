@@ -129,7 +129,7 @@ export default function App() {
       const newAssigned = { ...prev.assignedEnergy, [slot]: dieVal };
       const count = [newAssigned.speed, newAssigned.attack, newAssigned.defense].filter(v => v !== null).length;
       const active = newDice.filter(d => d !== -1).length;
-      const done = count >= Math.min(3, active);
+      const done = count >= 3 || active === 0;
       const total = done ? computeTotalStats(prev.baseStats, newAssigned) : prev.totalStats;
       return {
         ...prev, energyDice: newDice, assignedEnergy: newAssigned, totalStats: total,
@@ -573,7 +573,7 @@ function PhaseControls(props: GameScreenProps) {
     return (
       <div className="controls-inner">
         <div className="action-hint">
-          <span className="hint-move">■ Move</span> 2pts ortho · 3pts diag &nbsp;
+          <span className="hint-move">■ Move</span> 1pt ortho · 2pts diag &nbsp;
           <span className="hint-attack">■ Attack</span> cost {state.monsterStats.defense}
         </div>
         <button className="btn btn-secondary btn-large" onClick={props.endAdventurerPhase}>End Turn →</button>
