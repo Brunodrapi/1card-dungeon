@@ -573,7 +573,7 @@ function PhaseControls(props: GameScreenProps) {
     return (
       <div className="controls-inner">
         <div className="action-hint">
-          <span className="hint-move">■ Move</span> 1pt ortho · 2pts diag &nbsp;
+          <span className="hint-move">■ Move</span> 2pts ortho · 3pts diag &nbsp;
           <span className="hint-attack">■ Attack</span> cost {state.monsterStats.defense}
         </div>
         <button className="btn btn-secondary btn-large" onClick={props.endAdventurerPhase}>End Turn →</button>

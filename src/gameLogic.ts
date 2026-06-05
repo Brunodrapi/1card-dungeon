@@ -12,9 +12,9 @@ export function rollDice(count: number): number[] {
 export function moveCost(a: Pos, b: Pos): number {
   const dr = Math.abs(a.row - b.row);
   const dc = Math.abs(a.col - b.col);
-  if (dr === 1 && dc === 0) return 1;
-  if (dr === 0 && dc === 1) return 1;
-  if (dr === 1 && dc === 1) return 2;
+  if (dr === 1 && dc === 0) return 2;
+  if (dr === 0 && dc === 1) return 2;
+  if (dr === 1 && dc === 1) return 3;
   return Infinity;
 }
 
