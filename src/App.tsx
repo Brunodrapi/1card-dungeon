@@ -162,16 +162,45 @@ export default function App() {
       if (prev.assignedEnergy[slot] !== null) return prev;
       const newDice = [...prev.energyDice]; newDice[dieIdx] = -1;
       const newAssigned = { ...prev.assignedEnergy, [slot]: dieVal };
-      const count = [newAssigned.speed, newAssigned.attack, newAssigned.defense].filter(v => v !== null).length;
-      const active = newDice.filter(d => d !== -1).length;
-      const done = count >= 3 || active === 0;
-      const total = done ? computeTotalStats(prev.baseStats, newAssigned) : prev.totalStats;
       return {
-        ...prev, energyDice: newDice, assignedEnergy: newAssigned, totalStats: total,
-        phase: done ? ('adventurer' as Phase) : prev.phase,
-        spentSpeed: done ? 0 : prev.spentSpeed, spentAttack: done ? 0 : prev.spentAttack,
-        selectedDie: null, barbarianRerolled: false,
-        log: done ? [...prev.log.slice(-20), `Spd ${total.speed}  Atk ${total.attack}  Def ${total.defense}`] : [...prev.log.slice(-20), `→ ${slot}: ${dieVal}`],
+        ...prev, energyDice: newDice, assignedEnergy: newAssigned,
+        selectedDie: null,
+        log: [...prev.log.slice(-20), `→ ${slot}: ${dieVal}`],
+      };
+    });
+  }, []);
+
+  // Return an assigned die to the pool (before confirming)
+  const unassignDie = useCallback((slot: 'speed' | 'attack' | 'defense') => {
+    setGameState(prev => {
+      if (!prev || prev.phase !== 'energyAssign') return prev;
+      const val = prev.assignedEnergy[slot];
+      if (val === null) return prev;
+      const newDice = [...prev.energyDice];
+      const freeIdx = newDice.indexOf(-1);
+      if (freeIdx === -1) return prev;
+      newDice[freeIdx] = val;
+      return {
+        ...prev, energyDice: newDice,
+        assignedEnergy: { ...prev.assignedEnergy, [slot]: null },
+        selectedDie: null,
+        log: [...prev.log.slice(-20), `↩ ${slot} annulé`],
+      };
+    });
+  }, []);
+
+  // Lock in the assignment and start the adventurer phase
+  const confirmEnergy = useCallback(() => {
+    setGameState(prev => {
+      if (!prev || prev.phase !== 'energyAssign') return prev;
+      const count = [prev.assignedEnergy.speed, prev.assignedEnergy.attack, prev.assignedEnergy.defense].filter(v => v !== null).length;
+      const active = prev.energyDice.filter(d => d !== -1).length;
+      if (count < 3 && active > 0) return prev;
+      const total = computeTotalStats(prev.baseStats, prev.assignedEnergy);
+      return {
+        ...prev, totalStats: total, phase: 'adventurer' as Phase,
+        spentSpeed: 0, spentAttack: 0, selectedDie: null, barbarianRerolled: false,
+        log: [...prev.log.slice(-20), `Spd ${total.speed}  Atk ${total.attack}  Def ${total.defense}`],
       };
     });
   }, []);
@@ -269,7 +298,7 @@ export default function App() {
   if (screen === 'classSelect') return <ClassSelectScreen selected={characterClass} onSelect={setCharacterClass} onConfirm={() => startGame(characterClass)} />;
   if (!gameState) return null;
 
-  return <GameScreen state={gameState} rollEnergy={rollEnergy} useWizardReroll={useWizardReroll} usePaladinKeep={usePaladinKeep} useBarbarianReroll={useBarbarianReroll} selectDie={selectDie} assignDie={assignDie} handleTileClick={handleTileClick} handleMonsterClick={handleMonsterClick} endAdventurerPhase={endAdventurerPhase} computeMonsterMove={computeMonsterMove} confirmMonsterMove={confirmMonsterMove} runMonsterAttack={runMonsterAttack} chooseLevelReward={chooseLevelReward} onRestart={() => setScreen('title')} />;
+  return <GameScreen state={gameState} rollEnergy={rollEnergy} useWizardReroll={useWizardReroll} usePaladinKeep={usePaladinKeep} useBarbarianReroll={useBarbarianReroll} selectDie={selectDie} assignDie={assignDie} unassignDie={unassignDie} confirmEnergy={confirmEnergy} handleTileClick={handleTileClick} handleMonsterClick={handleMonsterClick} endAdventurerPhase={endAdventurerPhase} computeMonsterMove={computeMonsterMove} confirmMonsterMove={confirmMonsterMove} runMonsterAttack={runMonsterAttack} chooseLevelReward={chooseLevelReward} onRestart={() => setScreen('title')} />;
 }
 
 // ── Shared constants ──────────────────────────────────────────────────────────
@@ -407,6 +436,7 @@ interface GameScreenProps {
   state: GameState;
   rollEnergy: () => void; useWizardReroll: () => void; usePaladinKeep: () => void; useBarbarianReroll: () => void;
   selectDie: (i: number) => void; assignDie: (slot: 'speed' | 'attack' | 'defense' | 'range') => void;
+  unassignDie: (slot: 'speed' | 'attack' | 'defense') => void; confirmEnergy: () => void;
   handleTileClick: (pos: Pos) => void; handleMonsterClick: (id: number) => void;
   endAdventurerPhase: () => void;
   computeMonsterMove: () => void; confirmMonsterMove: () => void;
@@ -634,6 +664,9 @@ function PhaseControls(props: GameScreenProps) {
   }
 
   if (state.phase === 'energyAssign') {
+    const assignedCount = [ae.speed, ae.attack, ae.defense].filter(v => v !== null).length;
+    const activeDice = state.energyDice.filter(d => d !== -1).length;
+    const ready = assignedCount >= 3 || activeDice === 0;
     return (
       <div className="controls-inner">
         <div className="dice-row">
@@ -643,21 +676,19 @@ function PhaseControls(props: GameScreenProps) {
               : <button key={i} className={`die ${state.selectedDie === i ? 'die-selected' : ''}`} onClick={() => props.selectDie(i)}>{DIE_FACES[d]}</button>
           )}
         </div>
-        {state.selectedDie !== null && state.energyDice[state.selectedDie] !== -1 && (
-          <div className="assign-row">
-            <button className="btn btn-slot" disabled={ae.speed !== null} onClick={() => props.assignDie('speed')}>👟 SPD{ae.speed !== null ? ' ✓' : ''}</button>
-            <button className="btn btn-slot" disabled={ae.attack !== null} onClick={() => props.assignDie('attack')}>⚔️ ATK{ae.attack !== null ? ' ✓' : ''}</button>
-            <button className="btn btn-slot" disabled={ae.defense !== null} onClick={() => props.assignDie('defense')}>🛡️ DEF{ae.defense !== null ? ' ✓' : ''}</button>
-            {state.characterClass === 'ranger' && !state.classAbilityUsed && (
-              <button className="btn btn-class" onClick={() => props.assignDie('range')}>🏹+</button>
-            )}
-          </div>
-        )}
-        <div className="assign-preview">
-          <span className={ae.speed !== null ? 'assigned' : ''}>Spd {ae.speed ?? '?'}</span>
-          <span className={ae.attack !== null ? 'assigned' : ''}>Atk {ae.attack ?? '?'}</span>
-          <span className={ae.defense !== null ? 'assigned' : ''}>Def {ae.defense ?? '?'}</span>
+        <div className="assign-row">
+          {(['speed', 'attack', 'defense'] as const).map(slot => {
+            const icons = { speed: '👟 SPD', attack: '⚔️ ATK', defense: '🛡️ DEF' };
+            const val = ae[slot];
+            return val !== null
+              ? <button key={slot} className="btn btn-slot btn-slot-filled" onClick={() => props.unassignDie(slot)}>{icons[slot]} {val} ✕</button>
+              : <button key={slot} className="btn btn-slot" disabled={state.selectedDie === null} onClick={() => props.assignDie(slot)}>{icons[slot]}</button>;
+          })}
+          {state.characterClass === 'ranger' && !state.classAbilityUsed && state.selectedDie !== null && (
+            <button className="btn btn-class" onClick={() => props.assignDie('range')}>🏹+</button>
+          )}
         </div>
+        {ready && <button className="btn btn-primary btn-large" onClick={props.confirmEnergy}>Valider →</button>}
         {state.characterClass === 'wizard' && !state.classAbilityUsed && (
           <button className="btn btn-class" onClick={props.useWizardReroll}>🔮 Reroll all</button>
         )}
