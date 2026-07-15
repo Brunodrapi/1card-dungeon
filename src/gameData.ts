@@ -47,28 +47,28 @@ export const DUNGEON_CONFIGS: DungeonConfig[] = [
   },
   // Config 2 — back side, Goblin orientation (levels 3, 7, 11)
   // Adventurer starts bottom-left; exit top-right
-  // Walls: (1,1), (1,3), (2,1), (3,1)
+  // Pits: (1,1), (1,3), (3,1)
   {
     rows: 5, cols: 5,
     adventurerStart: { row: 4, col: 0 },
     grid: [
       [F, F, F, F, S],
       [F, W, F, W, F],
-      [F, W, F, F, F],
+      [F, F, F, F, F],
       [F, W, F, F, F],
       [S, F, F, F, F],
     ],
   },
   // Config 3 — back side, Spider orientation — rotated 180° of Config 2 (levels 1, 5, 6)
   // Adventurer starts bottom-left; exit top-right
-  // Walls at rotated positions: (1,3), (2,3), (3,1), (3,3)
+  // Pits at rotated positions: (1,3), (3,1), (3,3)
   {
     rows: 5, cols: 5,
     adventurerStart: { row: 4, col: 0 },
     grid: [
       [F, F, F, F, S],
       [F, F, F, W, F],
-      [F, F, F, W, F],
+      [F, F, F, F, F],
       [F, W, F, W, F],
       [S, F, F, F, F],
     ],
