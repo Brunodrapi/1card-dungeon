@@ -13,6 +13,10 @@ import {
 } from './gameLogic';
 import './App.css';
 import heroImg from './assets/869D39DA-CA85-45E0-91D4-B498B377CBB3.png';
+import spiderImg from './assets/monster-spider.png';
+import goblinImg from './assets/monster-goblin.png';
+import skeletonImg from './assets/monster-skeleton.png';
+import dragonImg from './assets/monster-dragon.png';
 
 const NAME_KEY = '1cd-name';
 
@@ -274,6 +278,8 @@ const CLASSES: CharacterClass[] = ['none', 'paladin', 'barbarian', 'ranger', 'wi
 const CLASS_ICONS: Record<CharacterClass, string> = { none: '🗡️', paladin: '🛡️', barbarian: '🪓', ranger: '🏹', wizard: '🔮' };
 const CLASS_NAMES: Record<CharacterClass, string> = { none: 'Adventurer', paladin: 'Paladin', barbarian: 'Barbarian', ranger: 'Ranger', wizard: 'Wizard' };
 const MONSTER_EMOJI: Record<string, string> = { Spider: '🕷️', Goblin: '👺', Skeleton: '💀', Orc: '👹', Troll: '🧌', Dragon: '🐉', 'Lich King': '☠️' };
+// Sprites extracted from the physical card photos
+const MONSTER_IMG: Record<string, string> = { Spider: spiderImg, Goblin: goblinImg, Skeleton: skeletonImg, Dragon: dragonImg };
 const DIE_FACES = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 const PHASE_LABELS: Record<Phase, string> = {
   classSelect: 'Class', energy: 'Energy', energyAssign: 'Assign',
@@ -596,7 +602,9 @@ function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, on
               {isAdv && <img src={heroImg} className="adv-icon" alt="adventurer" />}
               {monster && (
                 <div className="monster-token">
-                  <span className="monster-emoji">{MONSTER_EMOJI[monster.type] ?? '👾'}</span>
+                  {MONSTER_IMG[monster.type]
+                    ? <img className="monster-img" src={MONSTER_IMG[monster.type]} alt={monster.type} />
+                    : <span className="monster-emoji">{MONSTER_EMOJI[monster.type] ?? '👾'}</span>}
                   <span className="monster-hp">{monster.health}</span>
                 </div>
               )}
