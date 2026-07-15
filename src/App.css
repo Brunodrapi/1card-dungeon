@@ -31,6 +31,9 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .title-content h1 { font-size: 2.4rem; font-weight: 800; color: var(--gold); text-shadow: 0 0 30px rgba(200,168,75,.5); }
 .subtitle { color: var(--dim); }
 .credit { font-size: 0.72rem; color: var(--dim); margin-top: 0.5rem; }
+.credit + .credit { margin-top: 0.1rem; }
+.credit-link { color: var(--gold); text-decoration: underline; }
+.credit-link:hover { color: var(--gold-l); }
 
 /* ── Class Select ───────────────────────────────────────────────────────────── */
 .class-screen { flex-direction: column; gap: 1.5rem; }
@@ -300,6 +303,20 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .end-content h2 { font-size: 2rem; color: var(--gold); }
 .end-content p  { color: var(--dim); }
 .victory .end-content h2 { color: var(--gold-l); text-shadow: 0 0 20px rgba(200,168,75,.5); }
+.name-entry { display: flex; gap: .5rem; width: 100%; max-width: 300px; }
+.name-input {
+  flex: 1;
+  min-width: 0;
+  padding: .5rem .7rem;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 1rem;
+}
+.name-input:focus { outline: none; border-color: var(--gold); }
+.name-input::placeholder { color: var(--dim); }
+.save-confirm { color: var(--green) !important; font-weight: 600; }
 .reward-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; width: 100%; }
 .reward-grid .full { grid-column: 1 / -1; }
 

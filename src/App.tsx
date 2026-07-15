@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import type { GameState, Phase, CharacterClass, Pos, BaseStats, DungeonConfig, MovementArrow } from './types';
 import { DUNGEON_CONFIGS, LEVEL_DEFS, CLASS_DESCRIPTIONS } from './gameData';
 import {
@@ -15,8 +15,9 @@ import './App.css';
 import heroImg from './assets/869D39DA-CA85-45E0-91D4-B498B377CBB3.png';
 
 // ── Score persistence ─────────────────────────────────────────────────────────
-interface GameRecord { date: string; cls: CharacterClass; level: number; won: boolean; }
+interface GameRecord { date: string; cls: CharacterClass; level: number; won: boolean; name?: string; }
 const SCORES_KEY = '1cd-scores';
+const NAME_KEY = '1cd-name';
 function loadScores(): GameRecord[] {
   try { return JSON.parse(localStorage.getItem(SCORES_KEY) ?? '[]'); } catch { return []; }
 }
@@ -61,16 +62,6 @@ export default function App() {
   const [screen, setScreen] = useState<'title' | 'classSelect' | 'game'>('title');
   const [characterClass, setCharacterClass] = useState<CharacterClass>('none');
   const [gameState, setGameState] = useState<GameState | null>(null);
-
-  const scoreRecorded = useRef(false);
-  useEffect(() => {
-    if (!gameState) { scoreRecorded.current = false; return; }
-    if (scoreRecorded.current) return;
-    if (gameState.phase === 'gameOver' || gameState.phase === 'victory') {
-      scoreRecorded.current = true;
-      saveRecord({ date: new Date().toISOString(), cls: gameState.characterClass, level: gameState.level, won: gameState.phase === 'victory' });
-    }
-  }, [gameState]);
 
   const startGame = useCallback((cls: CharacterClass) => {
     setGameState(buildLevelState(1, cls, { ...INITIAL_STATS }, 6));
@@ -268,7 +259,7 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
             {scores.map((r, i) => (
               <div key={i} className={`score-row${r.won ? ' score-won' : ''}`}>
                 <span className="score-icon">{CLASS_ICONS[r.cls]}</span>
-                <span className="score-name">{CLASS_NAMES[r.cls]}</span>
+                <span className="score-name">{r.name ?? CLASS_NAMES[r.cls]}</span>
                 <span className="score-result">{r.won ? '🏆 Victory' : `Lvl ${r.level}`}</span>
                 <span className="score-date">{new Date(r.date).toLocaleDateString()}</span>
               </div>
@@ -276,6 +267,7 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
           </div>
         )}
         <p className="credit">Designed by Barny Skinner · Little Rocket Games</p>
+        <p className="credit">Web app réalisée par un fan — <a className="credit-link" href="https://boardgamegeek.com/profile/apiiii" target="_blank" rel="noreferrer">mon profil BGG</a> — non affiliée à Little Rocket Games</p>
       </div>
     </div>
   );
@@ -297,6 +289,48 @@ function ClassSelectScreen({ selected, onSelect, onConfirm }: { selected: Charac
         ))}
       </div>
       <button className="btn btn-primary btn-large" onClick={onConfirm}>Enter as {CLASS_NAMES[selected]}</button>
+    </div>
+  );
+}
+
+// ── End Screen (game over / victory) ─────────────────────────────────────────
+
+function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number; cls: CharacterClass; onRestart: () => void }) {
+  const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? '');
+  const [saved, setSaved] = useState(false);
+
+  const save = () => {
+    const pseudo = name.trim();
+    if (!pseudo || saved) return;
+    localStorage.setItem(NAME_KEY, pseudo);
+    saveRecord({ date: new Date().toISOString(), cls, level, won, name: pseudo });
+    setSaved(true);
+  };
+
+  return (
+    <div className={`screen end-screen${won ? ' victory' : ''}`}>
+      <div className="end-content">
+        <div className="end-icon">{won ? '🏆' : '💀'}</div>
+        <h2>{won ? 'Victory!' : 'Fallen Hero'}</h2>
+        <p>{won ? "The Sceptre of M'Guf-yn is yours!" : `You reached level ${level}.`}</p>
+        {saved ? (
+          <p className="save-confirm">✓ Score enregistré — {name.trim()}</p>
+        ) : (
+          <div className="name-entry">
+            <input
+              className="name-input"
+              type="text"
+              maxLength={16}
+              placeholder="Ton pseudo"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') save(); }}
+            />
+            <button className="btn btn-primary" disabled={!name.trim()} onClick={save}>Enregistrer</button>
+          </div>
+        )}
+        <button className="btn btn-secondary" onClick={onRestart}>{won ? 'Play Again' : 'Try Again'}</button>
+      </div>
     </div>
   );
 }
@@ -329,11 +363,8 @@ function GameScreen(props: GameScreenProps) {
   const inRangeMonsters = state.phase === 'monsterAttack'
     ? state.monsters.filter(m => rangeDistance(m.pos, state.adventurerPos, config) <= state.monsterStats.range && hasLoS(m.pos, state.adventurerPos, config, state.monsters, [m.id])).map(m => m.id) : [];
 
-  if (state.phase === 'gameOver') {
-    return <div className="screen end-screen"><div className="end-content"><div className="end-icon">💀</div><h2>Fallen Hero</h2><p>You reached level {state.level}.</p><button className="btn btn-primary" onClick={props.onRestart}>Try Again</button></div></div>;
-  }
-  if (state.phase === 'victory') {
-    return <div className="screen end-screen victory"><div className="end-content"><div className="end-icon">🏆</div><h2>Victory!</h2><p>The Sceptre of M'Guf-yn is yours!</p><button className="btn btn-primary" onClick={props.onRestart}>Play Again</button></div></div>;
+  if (state.phase === 'gameOver' || state.phase === 'victory') {
+    return <EndScreen won={state.phase === 'victory'} level={state.level} cls={state.characterClass} onRestart={props.onRestart} />;
   }
   if (state.phase === 'levelEnd') {
     return (
