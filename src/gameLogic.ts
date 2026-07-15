@@ -256,10 +256,12 @@ function moveToward(
 ): Pos {
   let pos = { ...from };
   let remaining = speedPoints;
+  // Last tile the monster may legally stop on (others can be passed
+  // through but never ended on)
+  let lastValid = { ...from };
 
   while (remaining > 0) {
     const neighbors = getNeighbors(pos, config, advPos, []);
-    // others can be passed through but not ended on
     if (neighbors.length === 0) break;
 
     // Pick neighbor that minimizes distance to target
@@ -270,19 +272,16 @@ function moveToward(
 
     if (!best || best.dist >= manDist(pos, to)) break;
 
-    // Check if we can actually stop there (not on another monster)
-    const endOk = !others.some(o => o.row === best.pos.row && o.col === best.pos.col);
-    if (!endOk) {
-      // Try passing through
-      pos = best.pos;
-      remaining -= best.cost;
-      continue;
-    }
-
     pos = best.pos;
     remaining -= best.cost;
+    if (!others.some(o => o.row === pos.row && o.col === pos.col)) {
+      lastValid = { ...pos };
+    }
   }
 
+  // If movement ran out while passing through an occupied tile, back off
+  // to the last legal stopping tile
+  if (others.some(o => o.row === pos.row && o.col === pos.col)) return lastValid;
   return pos;
 }
 
