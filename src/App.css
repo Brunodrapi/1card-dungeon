@@ -317,6 +317,8 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .name-input:focus { outline: none; border-color: var(--gold); }
 .name-input::placeholder { color: var(--dim); }
 .save-confirm { color: var(--green) !important; font-weight: 600; }
+.name-entry-block { display: flex; flex-direction: column; gap: .4rem; width: 100%; max-width: 300px; align-items: center; }
+.save-error { color: var(--red-l) !important; font-size: .8rem; }
 .reward-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; width: 100%; }
 .reward-grid .full { grid-column: 1 / -1; }
 
@@ -363,6 +365,8 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 }
 .score-won { color: var(--text); }
 .score-icon { font-size: 1rem; flex-shrink: 0; }
+.score-rank { min-width: 1.1rem; text-align: right; font-weight: 800; color: var(--dim); font-size: .7rem; flex-shrink: 0; }
+.score-empty { font-size: .75rem; color: var(--dim); padding: .3rem 0; }
 .score-name { flex: 1; font-weight: 600; }
 .score-result { font-weight: 700; color: var(--gold-l); min-width: 70px; text-align: right; }
 .score-won .score-result { color: var(--gold); }

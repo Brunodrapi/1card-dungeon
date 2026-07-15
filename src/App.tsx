@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { GameState, Phase, CharacterClass, Pos, BaseStats, DungeonConfig, MovementArrow } from './types';
 import { DUNGEON_CONFIGS, LEVEL_DEFS, CLASS_DESCRIPTIONS } from './gameData';
 import {
@@ -24,6 +24,56 @@ function loadScores(): GameRecord[] {
 function saveRecord(r: GameRecord) {
   const list = loadScores(); list.unshift(r);
   localStorage.setItem(SCORES_KEY, JSON.stringify(list.slice(0, 20)));
+}
+
+// ── Online leaderboard (JSONBin — separate bin from 1 Card Racing) ───────────
+interface LBEntry { name: string; cls: CharacterClass; level: number; won: boolean; date: string; ts?: number; }
+const LB_KEY = '$2a$10$ZhGQjyGQdYCKWCXurwGeBu5QbQu8Y.O9DTGHsqiv6iDahS0mniad6';
+const LB_URL = 'https://api.jsonbin.io/v3/b/6a579872da38895dfe615775';
+
+function fetchTimeout(url: string, opts: RequestInit, ms = 8000): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
+
+// null = network/parse error (distinct from empty list)
+async function loadLeaderboard(): Promise<LBEntry[] | null> {
+  try {
+    const r = await fetchTimeout(LB_URL, { headers: { 'X-Master-Key': LB_KEY, 'X-Bin-Meta': 'false' } });
+    if (!r.ok) throw new Error(String(r.status));
+    const data = await r.json();
+    const arr: LBEntry[] = Array.isArray(data) ? data : Array.isArray(data?.record) ? data.record : [];
+    return arr.filter(e => e.level >= 1); // drop the INIT sentinel
+  } catch (e) { console.warn('Leaderboard load:', e); return null; }
+}
+
+async function saveLeaderboard(arr: LBEntry[]): Promise<boolean> {
+  try {
+    const r = await fetchTimeout(LB_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': LB_KEY },
+      body: JSON.stringify(arr),
+    });
+    return r.ok;
+  } catch (e) { console.warn('Leaderboard save:', e); return false; }
+}
+
+function rankLB(a: LBEntry, b: LBEntry): number {
+  return (b.won ? 1 : 0) - (a.won ? 1 : 0) || b.level - a.level;
+}
+
+// Fetch fresh, insert entry (idempotent on retry), sort, keep top 20.
+// Returns the entry's rank (0-based) or -1 on failure.
+async function submitToLeaderboard(entry: LBEntry): Promise<number> {
+  const lb = await loadLeaderboard();
+  if (lb === null) return -1; // load failed — don't overwrite the bin
+  const same = (e: LBEntry) => e.name === entry.name && e.ts === entry.ts;
+  if (!lb.some(same)) lb.push(entry); // idempotent on retry after silent success
+  lb.sort(rankLB);
+  const rank = lb.findIndex(same);
+  const ok = await saveLeaderboard(lb.slice(0, 20));
+  return ok ? rank : -1;
 }
 
 const INITIAL_STATS: BaseStats = { speed: 1, attack: 1, defense: 1, range: 2 };
@@ -246,6 +296,8 @@ const PHASE_LABELS: Record<Phase, string> = {
 
 function TitleScreen({ onStart }: { onStart: () => void }) {
   const scores = loadScores().slice(0, 5);
+  const [lb, setLb] = useState<LBEntry[] | null | 'loading'>('loading');
+  useEffect(() => { loadLeaderboard().then(setLb); }, []);
   return (
     <div className="screen title-screen">
       <div className="title-content">
@@ -253,6 +305,21 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
         <h1>1 Card Dungeon</h1>
         <p className="subtitle">Solo dungeon crawl · 12 levels</p>
         <button className="btn btn-primary btn-large" onClick={onStart}>Begin Adventure</button>
+        <div className="score-list">
+          <div className="score-heading">🏆 Tableau des meilleurs héros</div>
+          {lb === 'loading' && <div className="score-empty">Chargement…</div>}
+          {lb === null && <div className="score-empty">Classement indisponible</div>}
+          {Array.isArray(lb) && lb.length === 0 && <div className="score-empty">Aucun score — sois le premier !</div>}
+          {Array.isArray(lb) && lb.slice(0, 10).map((e, i) => (
+            <div key={i} className={`score-row${e.won ? ' score-won' : ''}`}>
+              <span className="score-rank">{i + 1}</span>
+              <span className="score-icon">{CLASS_ICONS[e.cls] ?? '🗡️'}</span>
+              <span className="score-name">{e.name}</span>
+              <span className="score-result">{e.won ? '🏆 Victory' : `Lvl ${e.level}`}</span>
+              <span className="score-date">{e.date}</span>
+            </div>
+          ))}
+        </div>
         {scores.length > 0 && (
           <div className="score-list">
             <div className="score-heading">Recent runs</div>
@@ -297,14 +364,26 @@ function ClassSelectScreen({ selected, onSelect, onConfirm }: { selected: Charac
 
 function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number; cls: CharacterClass; onRestart: () => void }) {
   const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? '');
-  const [saved, setSaved] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [rank, setRank] = useState(-1);
+  const [pending, setPending] = useState<LBEntry | null>(null);
 
-  const save = () => {
+  const save = async () => {
     const pseudo = name.trim();
-    if (!pseudo || saved) return;
+    if (!pseudo || status === 'saving' || status === 'saved') return;
+    setStatus('saving');
     localStorage.setItem(NAME_KEY, pseudo);
-    saveRecord({ date: new Date().toISOString(), cls, level, won, name: pseudo });
-    setSaved(true);
+    // Freeze the entry on first attempt so retries stay idempotent
+    let entry = pending;
+    if (!entry) {
+      entry = { name: pseudo, cls, level, won, date: new Date().toLocaleDateString('fr-FR'), ts: Date.now() };
+      setPending(entry);
+      saveRecord({ date: new Date().toISOString(), cls, level, won, name: pseudo });
+    }
+    const r = await submitToLeaderboard(entry);
+    if (r === -1) { setStatus('error'); return; }
+    setRank(r);
+    setStatus('saved');
   };
 
   return (
@@ -313,20 +392,26 @@ function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number
         <div className="end-icon">{won ? '🏆' : '💀'}</div>
         <h2>{won ? 'Victory!' : 'Fallen Hero'}</h2>
         <p>{won ? "The Sceptre of M'Guf-yn is yours!" : `You reached level ${level}.`}</p>
-        {saved ? (
-          <p className="save-confirm">✓ Score enregistré — {name.trim()}</p>
+        {status === 'saved' ? (
+          <p className="save-confirm">✓ Score enregistré — {name.trim()}{rank >= 0 && rank < 20 ? ` · #${rank + 1} au classement` : ''}</p>
         ) : (
-          <div className="name-entry">
-            <input
-              className="name-input"
-              type="text"
-              maxLength={16}
-              placeholder="Ton pseudo"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') save(); }}
-            />
-            <button className="btn btn-primary" disabled={!name.trim()} onClick={save}>Enregistrer</button>
+          <div className="name-entry-block">
+            <div className="name-entry">
+              <input
+                className="name-input"
+                type="text"
+                maxLength={16}
+                placeholder="Ton pseudo"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') save(); }}
+                disabled={status === 'saving'}
+              />
+              <button className="btn btn-primary" disabled={!name.trim() || status === 'saving'} onClick={save}>
+                {status === 'saving' ? '…' : status === 'error' ? 'Réessayer' : 'Enregistrer'}
+              </button>
+            </div>
+            {status === 'error' && <p className="save-error">Impossible d'enregistrer en ligne — réessaie.</p>}
           </div>
         )}
         <button className="btn btn-secondary" onClick={onRestart}>{won ? 'Play Again' : 'Try Again'}</button>
