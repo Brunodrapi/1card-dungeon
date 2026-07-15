@@ -14,17 +14,7 @@ import {
 import './App.css';
 import heroImg from './assets/869D39DA-CA85-45E0-91D4-B498B377CBB3.png';
 
-// ── Score persistence ─────────────────────────────────────────────────────────
-interface GameRecord { date: string; cls: CharacterClass; level: number; won: boolean; name?: string; }
-const SCORES_KEY = '1cd-scores';
 const NAME_KEY = '1cd-name';
-function loadScores(): GameRecord[] {
-  try { return JSON.parse(localStorage.getItem(SCORES_KEY) ?? '[]'); } catch { return []; }
-}
-function saveRecord(r: GameRecord) {
-  const list = loadScores(); list.unshift(r);
-  localStorage.setItem(SCORES_KEY, JSON.stringify(list.slice(0, 20)));
-}
 
 // ── Online leaderboard (JSONBin — separate bin from 1 Card Racing) ───────────
 interface LBEntry { name: string; cls: CharacterClass; level: number; won: boolean; date: string; ts?: number; }
@@ -295,7 +285,6 @@ const PHASE_LABELS: Record<Phase, string> = {
 // ── Title ─────────────────────────────────────────────────────────────────────
 
 function TitleScreen({ onStart }: { onStart: () => void }) {
-  const scores = loadScores().slice(0, 5);
   const [lb, setLb] = useState<LBEntry[] | null | 'loading'>('loading');
   useEffect(() => { loadLeaderboard().then(setLb); }, []);
   return (
@@ -320,19 +309,6 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
             </div>
           ))}
         </div>
-        {scores.length > 0 && (
-          <div className="score-list">
-            <div className="score-heading">Recent runs</div>
-            {scores.map((r, i) => (
-              <div key={i} className={`score-row${r.won ? ' score-won' : ''}`}>
-                <span className="score-icon">{CLASS_ICONS[r.cls]}</span>
-                <span className="score-name">{r.name ?? CLASS_NAMES[r.cls]}</span>
-                <span className="score-result">{r.won ? '🏆 Victory' : `Lvl ${r.level}`}</span>
-                <span className="score-date">{new Date(r.date).toLocaleDateString()}</span>
-              </div>
-            ))}
-          </div>
-        )}
         <p className="credit">Designed by Barny Skinner · Little Rocket Games</p>
         <p className="credit">Web app réalisée par un fan — <a className="credit-link" href="https://boardgamegeek.com/profile/apiiii" target="_blank" rel="noreferrer">mon profil BGG</a> — non affiliée à Little Rocket Games</p>
       </div>
@@ -378,7 +354,6 @@ function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number
     if (!entry) {
       entry = { name: pseudo, cls, level, won, date: new Date().toLocaleDateString('fr-FR'), ts: Date.now() };
       setPending(entry);
-      saveRecord({ date: new Date().toISOString(), cls, level, won, name: pseudo });
     }
     const r = await submitToLeaderboard(entry);
     if (r === -1) { setStatus('error'); return; }
