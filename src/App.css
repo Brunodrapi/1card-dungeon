@@ -201,11 +201,11 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .tile-icon { font-size: inherit; }
 .adv-icon {
   position: absolute;
-  bottom: 2%;
+  bottom: 4%;
   left: 50%;
   transform: translateX(-50%);
-  height: 135%;
-  max-width: 120%;
+  height: 92%;
+  max-width: 96%;
   object-fit: contain;
   object-position: bottom;
   z-index: 2;
