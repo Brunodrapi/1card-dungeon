@@ -12,7 +12,11 @@ import {
   hasLoS,
 } from './gameLogic';
 import './App.css';
-import heroImg from './assets/869D39DA-CA85-45E0-91D4-B498B377CBB3.png';
+import advImg from './assets/class-adventurer.png';
+import paladinImg from './assets/class-paladin.png';
+import barbarianImg from './assets/class-barbarian.png';
+import rangerImg from './assets/class-ranger.png';
+import wizardImg from './assets/class-wizard.png';
 import spiderImg from './assets/monster-spider.png';
 import goblinImg from './assets/monster-goblin.png';
 import skeletonImg from './assets/monster-skeleton.png';
@@ -306,6 +310,7 @@ export default function App() {
 const CLASSES: CharacterClass[] = ['none', 'paladin', 'barbarian', 'ranger', 'wizard'];
 const CLASS_ICONS: Record<CharacterClass, string> = { none: '🗡️', paladin: '🛡️', barbarian: '🪓', ranger: '🏹', wizard: '🔮' };
 const CLASS_NAMES: Record<CharacterClass, string> = { none: 'Adventurer', paladin: 'Paladin', barbarian: 'Barbarian', ranger: 'Ranger', wizard: 'Wizard' };
+const CLASS_IMG: Record<CharacterClass, string> = { none: advImg, paladin: paladinImg, barbarian: barbarianImg, ranger: rangerImg, wizard: wizardImg };
 const MONSTER_EMOJI: Record<string, string> = { Spider: '🕷️', Goblin: '👺', Skeleton: '💀', Orc: '👹', Troll: '🧌', Dragon: '🐉', 'Lich King': '☠️' };
 // Sprites extracted from the physical card photos
 const MONSTER_IMG: Record<string, string> = { Spider: spiderImg, Goblin: goblinImg, Skeleton: skeletonImg, Dragon: dragonImg };
@@ -360,7 +365,7 @@ function ClassSelectScreen({ selected, onSelect, onConfirm }: { selected: Charac
       <div className="class-grid">
         {CLASSES.map(cls => (
           <button key={cls} className={`class-card ${selected === cls ? 'selected' : ''}`} onClick={() => onSelect(cls)}>
-            <span className="class-icon">{CLASS_ICONS[cls]}</span>
+            <img className="class-img" src={CLASS_IMG[cls]} alt={CLASS_NAMES[cls]} />
             <span className="class-name">{CLASS_NAMES[cls]}</span>
             <span className="class-desc">{CLASS_DESCRIPTIONS[cls]}</span>
           </button>
@@ -492,7 +497,7 @@ function GameScreen(props: GameScreenProps) {
 
       {/* Adventurer stat bar */}
       <div className="adv-bar">
-        <div className="adv-class">{CLASS_ICONS[state.characterClass]}</div>
+        <img className="adv-class-img" src={CLASS_IMG[state.characterClass]} alt={CLASS_NAMES[state.characterClass]} />
         <div className="hearts-row">{Array(6).fill(0).map((_, i) => <span key={i} className={i < state.adventurerHealth ? 'heart-full' : 'heart-empty'}>♥</span>)}</div>
         <StatChip label="SPD" base={state.baseStats.speed} energy={state.assignedEnergy.speed} left={state.phase === 'adventurer' ? speedLeft : null} />
         <StatChip label="ATK" base={state.baseStats.attack} energy={state.assignedEnergy.attack} left={state.phase === 'adventurer' ? attackLeft : null} />
@@ -629,7 +634,7 @@ function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, on
               else if (reachable.has(key)) onTileClick({ row: r, col: c });
             }}>
               {tile === 'stairs' && !isAdv && <span className="tile-icon">🪜</span>}
-              {isAdv && <img src={heroImg} className="adv-icon" alt="adventurer" />}
+              {isAdv && <img src={CLASS_IMG[state.characterClass]} className="adv-icon" alt="adventurer" />}
               {monster && (
                 <div className="monster-token">
                   {MONSTER_IMG[monster.type]
