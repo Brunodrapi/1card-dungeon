@@ -12,6 +12,8 @@ import {
   hasLoS,
 } from './gameLogic';
 import './App.css';
+import coverImg from './assets/cover.jpg';
+import bannerImg from './assets/banner-title.png';
 import advImg from './assets/class-adventurer.png';
 import paladinImg from './assets/class-paladin.png';
 import barbarianImg from './assets/class-barbarian.png';
@@ -346,8 +348,7 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
   return (
     <div className="screen title-screen">
       <div className="title-content">
-        <div className="title-icon">⚔️</div>
-        <h1>1 Card Dungeon</h1>
+        <img className="title-cover" src={coverImg} alt="One Card Dungeon" />
         <p className="subtitle">Solo dungeon crawl · 12 levels</p>
         <button className="btn btn-primary btn-large" onClick={onStart}>Begin Adventure</button>
         {fame.length > 0 && (
@@ -377,7 +378,7 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
           ))}
         </div>
         <p className="credit">Designed by Barny Skinner · Little Rocket Games</p>
-        <p className="credit">Web app réalisée par un fan — <a className="credit-link" href="https://boardgamegeek.com/profile/apiiii" target="_blank" rel="noreferrer">mon profil BGG</a> — non affiliée à Little Rocket Games</p>
+        <p className="credit">Fan-made web app — <a className="credit-link" href="https://boardgamegeek.com/profile/apiiii" target="_blank" rel="noreferrer">my BGG profile</a> — not affiliated with Little Rocket Games</p>
       </div>
     </div>
   );
@@ -518,6 +519,7 @@ function GameScreen(props: GameScreenProps) {
     <div className="game-layout">
       {/* Header */}
       <div className="game-header">
+        <img className="header-banner" src={bannerImg} alt="One Card Dungeon" />
         <span className="level-badge">Lvl {state.level}/12</span>
         <span className={`phase-badge phase-${state.phase}`}>{PHASE_LABELS[state.phase]}</span>
         <button className="btn-restart" onClick={props.onRestart}>✕</button>

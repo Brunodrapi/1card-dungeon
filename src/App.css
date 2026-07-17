@@ -6,21 +6,22 @@
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --bg:       #111009;
-  --bg2:      #1c1810;
-  --bg3:      #262015;
-  --border:   #3d3220;
-  --gold:     #c8a84b;
-  --gold-l:   #e0c870;
+  /* Palette from the official One Card Dungeon artwork (navy + gold) */
+  --bg:       #12062c;
+  --bg2:      #1c1240;
+  --bg3:      #281d52;
+  --border:   #3c3168;
+  --gold:     #f0b843;
+  --gold-l:   #f8d070;
   --red:      #b83030;
   --red-l:    #e05050;
   --green:    #4a9b5a;
   --blue:     #2a6fa8;
-  --blue-l:   #4a9fd8;
+  --blue-l:   #6ab0e8;
   --purple:   #7a44aa;
   --orange:   #c87020;
-  --text:     #e8dcc8;
-  --dim:      #7a6a50;
+  --text:     #e8e4f5;
+  --dim:      #8b83b8;
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 14px;
 }
@@ -30,10 +31,15 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .screen { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
 
 /* ── Title ──────────────────────────────────────────────────────────────────── */
-.title-screen { background: radial-gradient(ellipse at center, #2a1f0e 0%, var(--bg) 70%); }
-.title-content { text-align: center; max-width: 400px; display: flex; flex-direction: column; gap: 0.75rem; }
-.title-icon { font-size: 3.5rem; }
-.title-content h1 { font-size: 2.4rem; font-weight: 800; color: var(--gold); text-shadow: 0 0 30px rgba(200,168,75,.5); }
+.title-screen { background: radial-gradient(ellipse at center, #241a4e 0%, var(--bg) 70%); align-items: flex-start; overflow-y: auto; }
+.title-content { text-align: center; max-width: 400px; display: flex; flex-direction: column; gap: 0.75rem; align-items: center; }
+.title-cover {
+  width: min(72vw, 300px);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 40px rgba(0,0,0,.6), 0 0 30px rgba(240,184,67,.12);
+}
+.title-content h1 { font-size: 2.4rem; font-weight: 800; color: var(--gold); text-shadow: 0 0 30px rgba(240,184,67,.5); }
 .subtitle { color: var(--dim); }
 .credit { font-size: 0.72rem; color: var(--dim); margin-top: 0.5rem; }
 .credit + .credit { margin-top: 0.1rem; }
@@ -90,6 +96,15 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
+.header-banner {
+  height: 20px;
+  width: auto;
+  max-width: 48%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  margin-right: auto;
+}
 .level-badge { background: var(--gold); color: #111; font-size: .75rem; font-weight: 800; padding: .15rem .5rem; border-radius: 4px; }
 .phase-badge { font-size: .75rem; padding: .15rem .5rem; border-radius: 4px; border: 1px solid var(--border); color: var(--dim); }
 .phase-badge.phase-adventurer   { border-color: var(--blue);   color: var(--blue-l); }
@@ -105,7 +120,7 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   justify-content: space-between;
   gap: .35rem;
   padding: .4rem .6rem;
-  background: #0d0b08;
+  background: #0b0620;
   border-bottom: 2px solid var(--border);
   flex-shrink: 0;
 }
@@ -152,7 +167,7 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   align-items: center;
   justify-content: center;
   gap: 0;
-  background: #0d0b08;
+  background: #0b0620;
   padding: .2rem 0;
 }
 .dungeon-outer {
