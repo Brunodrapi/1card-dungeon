@@ -1,4 +1,9 @@
 /* ── Base ───────────────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: 'PixelNum';
+  src: url('./assets/press-start-2p-digits.woff2') format('woff2');
+  font-display: swap;
+}
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --bg:       #111009;
@@ -114,7 +119,8 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .adv-heart-val {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: .8rem; font-weight: 900; color: #fff;
+  font-family: 'PixelNum', monospace;
+  font-size: .6rem; color: #fff;
   text-shadow: 0 1px 2px #000, 0 0 3px #000;
   padding-bottom: 2px;
 }
@@ -134,7 +140,7 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   gap: 1px;
 }
 .stat-chip-icon { height: 26px; width: 38px; object-fit: contain; image-rendering: pixelated; }
-.stat-chip-total { font-size: 1.35rem; font-weight: 800; color: #fff; line-height: 1; text-shadow: 0 1px 2px #000; }
+.stat-chip-total { font-family: 'PixelNum', monospace; font-size: 1.05rem; color: #fff; line-height: 1.15; text-shadow: 0 1px 2px #000; }
 .stat-chip-detail{ font-size: .6rem; color: var(--dim); line-height: 1; }
 .stat-chip-left  { font-size: .62rem; color: var(--blue-l); font-weight: 700; line-height: 1; }
 
@@ -239,8 +245,9 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 }
 .monster-hp {
   position: absolute; top: 3%; right: 3%;
-  font-size: .6em; font-weight: 700; color: var(--red-l);
-  background: rgba(0,0,0,.8); border-radius: 3px; padding: 0 3px;
+  font-family: 'PixelNum', monospace;
+  font-size: .45em; color: var(--red-l);
+  background: rgba(0,0,0,.8); border-radius: 3px; padding: 2px 3px;
 }
 .monster-emoji { font-size: clamp(1.3rem, 7vw, 2.6rem); line-height: 1; }
 
