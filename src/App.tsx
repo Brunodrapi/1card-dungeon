@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { GameState, Phase, CharacterClass, Pos, BaseStats, DungeonConfig, MovementArrow } from './types';
-import { DUNGEON_CONFIGS, LEVEL_DEFS, CLASS_DESCRIPTIONS } from './gameData';
+import type { GameState, Phase, CharacterClass, Pos, BaseStats, DungeonConfig, MovementArrow, BossDef } from './types';
+import { DUNGEON_CONFIGS, LEVEL_DEFS, CLASS_DESCRIPTIONS, BOSS_DEFS } from './gameData';
 import {
   rollDice,
   getReachableTiles,
@@ -28,11 +28,21 @@ import spiderImg from './assets/monster-spider.png';
 import goblinImg from './assets/monster-goblin.png';
 import skeletonImg from './assets/monster-skeleton.png';
 import dragonImg from './assets/monster-dragon.png';
+import necromancerImg from './assets/class-necromancer.png';
+import clericImg from './assets/class-cleric.png';
+import knightImg from './assets/class-knight.png';
+import rogueImg from './assets/class-rogue.png';
+import bossOrcImg from './assets/boss-orc.png';
+import bossLichImg from './assets/boss-lich.png';
+import bossWyvernImg from './assets/boss-wyvern.png';
+import bossMgufynImg from './assets/boss-mgufyn.png';
+import boardLavaImg from './assets/board-lava.jpg';
+import boardIceImg from './assets/board-ice.jpg';
 
 const NAME_KEY = '1cd-name';
 
 // ── Online leaderboard (JSONBin — separate bin from 1 Card Racing) ───────────
-interface LBEntry { name: string; cls: CharacterClass; level: number; won: boolean; date: string; ts?: number; }
+interface LBEntry { name: string; cls: CharacterClass; level: number; won: boolean; date: string; ts?: number; exp?: boolean; }
 const LB_KEY = '$2a$10$ZhGQjyGQdYCKWCXurwGeBu5QbQu8Y.O9DTGHsqiv6iDahS0mniad6';
 const LB_URL = 'https://api.jsonbin.io/v3/b/6a579872da38895dfe615775';
 
@@ -65,7 +75,9 @@ async function saveLeaderboard(arr: LBEntry[]): Promise<boolean> {
 }
 
 function rankLB(a: LBEntry, b: LBEntry): number {
-  return (b.won ? 1 : 0) - (a.won ? 1 : 0) || b.level - a.level;
+  // expansion victories (M'Guf-yn slain) rank above base-game victories
+  const score = (e: LBEntry) => (e.won ? (e.exp ? 200 : 100) : 0) + e.level;
+  return score(b) - score(a);
 }
 
 // Fetch fresh, insert entry (idempotent on retry), sort.
@@ -87,9 +99,20 @@ async function submitToLeaderboard(entry: LBEntry): Promise<number> {
 
 const INITIAL_STATS: BaseStats = { speed: 1, attack: 1, defense: 1, range: 2 };
 
-function buildLevelState(level: number, characterClass: CharacterClass, baseStats: BaseStats, health: number): GameState {
+function buildLevelState(level: number, characterClass: CharacterClass, baseStats: BaseStats, health: number, expansion: boolean): GameState {
   const def = LEVEL_DEFS[level - 1];
   const config = DUNGEON_CONFIGS[def.configIndex];
+  // Treasure chest (expansion): d6 on the exit stairs (opposite the entrance)
+  let chest = null;
+  if (expansion) {
+    for (let r = 0; r < config.rows; r++) {
+      for (let c = 0; c < config.cols; c++) {
+        if (config.grid[r][c] === 'stairs' && !(r === config.adventurerStart.row && c === config.adventurerStart.col)) {
+          chest = { pos: { row: r, col: c }, value: rollDice(1)[0], opened: false };
+        }
+      }
+    }
+  }
   return {
     phase: 'energy',
     level,
@@ -115,24 +138,85 @@ function buildLevelState(level: number, characterClass: CharacterClass, baseStat
     log: [`Level ${level}: ${def.monsterStats.type}s appear!`],
     selectedDie: null,
     pendingMovements: [],
+    expansion,
+    isBossLevel: false,
+    chest,
+    chestPool: 0,
+    chestSkillThisTurn: null,
+    chestSpentThisTurn: 0,
+    knightSlot: null,
+    necroTargeting: false,
   };
+}
+
+// Boss card is an extension of the current level: no heal, no reward, keep
+// the opened chest pool
+function buildBossState(prev: GameState): GameState {
+  const boss = bossForLevel(prev.level)!;
+  return {
+    ...prev,
+    phase: 'energy',
+    adventurerPos: { ...boss.config.adventurerStart },
+    energyDice: [0, 0, 0],
+    assignedEnergy: { speed: null, attack: null, defense: null, range: null },
+    totalStats: { ...prev.baseStats },
+    spentSpeed: 0,
+    spentAttack: 0,
+    monsters: [{ id: 1, pos: { ...boss.startPos }, health: boss.stats.health, maxHealth: boss.stats.health, type: boss.stats.type }],
+    monsterStats: boss.stats,
+    selectedDie: null,
+    pendingMovements: [],
+    isBossLevel: true,
+    chest: null,
+    chestSkillThisTurn: null,
+    chestSpentThisTurn: 0,
+    knightSlot: null,
+    necroTargeting: false,
+    log: [...prev.log.slice(-10), `⚔️ ${boss.name} awaits! (${boss.stats.health} HP)`],
+  };
+}
+
+// All monsters are dead — decide what happens next
+function endOfCombat(state: GameState): GameState {
+  if (!state.isBossLevel && state.expansion && bossForLevel(state.level)) {
+    return { ...state, phase: 'bossIntro', log: [...state.log.slice(-20), 'All enemies defeated!', '👹 A commander approaches…'] };
+  }
+  if (state.isBossLevel && state.level >= 12) {
+    return { ...state, phase: 'victory', log: [...state.log.slice(-20), "M'Guf-yn is vanquished! The world is safe!"] };
+  }
+  if (!state.isBossLevel && state.level >= 12) {
+    return { ...state, phase: 'victory', log: [...state.log.slice(-20), "Victory! The Sceptre is yours!"] };
+  }
+  return { ...state, phase: 'levelEnd', log: [...state.log.slice(-20), state.isBossLevel ? 'Boss defeated!' : 'All enemies defeated!'] };
+}
+
+// Cleric passive: three equal dice each gain +2 (max 6)
+function applyCleric(cls: CharacterClass, dice: number[], log: string[]): number[] {
+  if (cls === 'cleric' && dice[0] === dice[1] && dice[1] === dice[2]) {
+    const boosted = dice.map(d => Math.min(6, d + 2));
+    log.push(`✨ Cleric: triple ${dice[0]} → ${boosted.join(', ')}`);
+    return boosted;
+  }
+  return dice;
 }
 
 export default function App() {
   const [screen, setScreen] = useState<'title' | 'classSelect' | 'game'>('title');
   const [characterClass, setCharacterClass] = useState<CharacterClass>('none');
+  const [expansion, setExpansion] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
 
-  const startGame = useCallback((cls: CharacterClass) => {
-    setGameState(buildLevelState(1, cls, { ...INITIAL_STATS }, 6));
+  const startGame = useCallback((cls: CharacterClass, exp: boolean) => {
+    setGameState(buildLevelState(1, cls, { ...INITIAL_STATS }, 6, exp));
     setScreen('game');
   }, []);
 
   const rollEnergy = useCallback(() => {
     setGameState(prev => {
       if (!prev) return prev;
-      const dice = rollDice(3);
-      return { ...prev, energyDice: dice, turnRoll: [...dice], phase: 'energyAssign' as Phase, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, log: [...prev.log.slice(-20), `Rolled: ${dice.join(', ')}`] };
+      const extra: string[] = [];
+      const dice = applyCleric(prev.characterClass, rollDice(3), extra);
+      return { ...prev, energyDice: dice, turnRoll: [...dice], phase: 'energyAssign' as Phase, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, log: [...prev.log.slice(-20), `Rolled: ${dice.join(', ')}`, ...extra] };
     });
   }, []);
 
@@ -180,7 +264,17 @@ export default function App() {
         const newAssigned = { ...prev.assignedEnergy, range: dieVal };
         return { ...prev, energyDice: newDice, assignedEnergy: newAssigned, classAbilityUsed: true, selectedDie: null, log: [...prev.log.slice(-20), `Ranger: +${dieVal} Range`] };
       }
-      if (prev.assignedEnergy[slot] !== null) return prev;
+      if (prev.assignedEnergy[slot] !== null) {
+        // Knight: once per level, a second die may join an assigned skill
+        if (prev.characterClass !== 'knight' || prev.classAbilityUsed) return prev;
+        const newDice = [...prev.energyDice]; newDice[dieIdx] = -1;
+        const newAssigned = { ...prev.assignedEnergy, [slot]: prev.assignedEnergy[slot]! + dieVal };
+        return {
+          ...prev, energyDice: newDice, assignedEnergy: newAssigned,
+          classAbilityUsed: true, knightSlot: slot, selectedDie: null,
+          log: [...prev.log.slice(-20), `⚔️ Knight: +${dieVal} ${slot} (double)`],
+        };
+      }
       const newDice = [...prev.energyDice]; newDice[dieIdx] = -1;
       const newAssigned = { ...prev.assignedEnergy, [slot]: dieVal };
       return {
@@ -191,10 +285,28 @@ export default function App() {
     });
   }, []);
 
+  // Rogue: once per level, +1 to every rolled die
+  const useRogueBoost = useCallback(() => {
+    setGameState(prev => {
+      if (!prev || prev.phase !== 'energyAssign' || prev.characterClass !== 'rogue' || prev.classAbilityUsed) return prev;
+      const dice = prev.energyDice.map(d => d === -1 ? d : Math.min(6, d + 1));
+      return { ...prev, energyDice: dice, turnRoll: prev.turnRoll ? prev.turnRoll.map(d => Math.min(6, d + 1)) : prev.turnRoll, classAbilityUsed: true, log: [...prev.log.slice(-20), '🗡 Rogue: +1 to all dice'] };
+    });
+  }, []);
+
+  // Necromancer: once per level, lose 1 Life to deal 1 damage within range
+  const toggleNecroTargeting = useCallback(() => {
+    setGameState(prev => {
+      if (!prev || prev.phase !== 'adventurer' || prev.characterClass !== 'necromancer' || prev.classAbilityUsed || prev.adventurerHealth <= 1) return prev;
+      return { ...prev, necroTargeting: !prev.necroTargeting };
+    });
+  }, []);
+
   // Return an assigned die to the pool (before confirming)
   const unassignDie = useCallback((slot: 'speed' | 'attack' | 'defense' | 'range') => {
     setGameState(prev => {
       if (!prev || prev.phase !== 'energyAssign') return prev;
+      if (slot === prev.knightSlot) return prev; // a doubled slot can't be split back
       const val = prev.assignedEnergy[slot];
       if (val === null) return prev;
       const newDice = [...prev.energyDice];
@@ -220,6 +332,9 @@ export default function App() {
       const active = prev.energyDice.filter(d => d !== -1).length;
       if (count < 3 && active > 0) return prev;
       const total = computeTotalStats(prev.baseStats, prev.assignedEnergy);
+      if (prev.chestSkillThisTurn && prev.chestSpentThisTurn > 0) {
+        total[prev.chestSkillThisTurn] += prev.chestSpentThisTurn;
+      }
       return {
         ...prev, totalStats: total, phase: 'adventurer' as Phase,
         spentSpeed: 0, spentAttack: 0, selectedDie: null, barbarianRerolled: false,
@@ -228,10 +343,40 @@ export default function App() {
     });
   }, []);
 
+  // Spend 1 treasure-chest point on a skill (one skill per turn)
+  const spendChestPoint = useCallback((skill: keyof BaseStats) => {
+    setGameState(prev => {
+      if (!prev || prev.phase !== 'energyAssign' || prev.chestPool <= 0) return prev;
+      if (prev.chestSkillThisTurn && prev.chestSkillThisTurn !== skill) return prev;
+      return {
+        ...prev,
+        chestPool: prev.chestPool - 1,
+        chestSkillThisTurn: skill,
+        chestSpentThisTurn: prev.chestSpentThisTurn + 1,
+        log: [...prev.log.slice(-20), `🧰 +1 ${skill} (${prev.chestPool - 1} left)`],
+      };
+    });
+  }, []);
+
   const handleTileClick = useCallback((pos: Pos) => {
     setGameState(prev => {
       if (!prev || prev.phase !== 'adventurer') return prev;
-      const config = DUNGEON_CONFIGS[LEVEL_DEFS[prev.level - 1].configIndex];
+      const config = getConfig(prev);
+      // Closed chest on the clicked tile → try to open it (attack, cost = value)
+      if (prev.chest && !prev.chest.opened && prev.chest.pos.row === pos.row && prev.chest.pos.col === pos.col) {
+        const chest = prev.chest;
+        const attackLeft = prev.totalStats.attack - prev.spentAttack;
+        const dist = rangeDistance(prev.adventurerPos, chest.pos, config, false);
+        const los = hasLoS(prev.adventurerPos, chest.pos, config, prev.monsters);
+        if (dist > prev.totalStats.range || !los || attackLeft < chest.value) return prev;
+        return {
+          ...prev,
+          chest: { ...chest, opened: true },
+          chestPool: prev.chestPool + chest.value,
+          spentAttack: prev.spentAttack + chest.value,
+          log: [...prev.log.slice(-20), `🧰 Chest opened! +${chest.value} loot points`],
+        };
+      }
       const reachable = getReachableTiles(prev.adventurerPos, prev.totalStats.speed - prev.spentSpeed, config, prev.monsters);
       const key = `${pos.row},${pos.col}`;
       if (!reachable.has(key)) return prev;
@@ -243,19 +388,35 @@ export default function App() {
   const handleMonsterClick = useCallback((monsterId: number) => {
     setGameState(prev => {
       if (!prev || prev.phase !== 'adventurer') return prev;
-      const config = DUNGEON_CONFIGS[LEVEL_DEFS[prev.level - 1].configIndex];
+      const config = getConfig(prev);
+      // Necromancer sacrifice: 1 Life → 1 damage, within range
+      if (prev.necroTargeting) {
+        const target = prev.monsters.find(m => m.id === monsterId);
+        if (!target) return prev;
+        const dist = rangeDistance(prev.adventurerPos, target.pos, config);
+        const los = hasLoS(prev.adventurerPos, target.pos, config, prev.monsters, [monsterId]);
+        if (dist > prev.totalStats.range || !los) return prev;
+        const newMonsters = prev.monsters.map(m => m.id === monsterId ? { ...m, health: m.health - 1 } : m).filter(m => m.health > 0);
+        const base = {
+          ...prev, monsters: newMonsters, adventurerHealth: prev.adventurerHealth - 1,
+          classAbilityUsed: true, necroTargeting: false,
+          log: [...prev.log.slice(-20), `☠️ Sacrifice: 1 damage to ${target.type}`],
+        };
+        return newMonsters.length === 0 ? endOfCombat(base) : base;
+      }
       const def = prev.monsterStats.defense;
       const attackable = getAttackableMonsters(prev.adventurerPos, prev.totalStats.range, prev.totalStats.attack - prev.spentAttack, config, prev.monsters, def);
       if (!attackable.includes(monsterId)) return prev;
       const newMonsters = prev.monsters.map(m => m.id === monsterId ? { ...m, health: m.health - 1 } : m).filter(m => m.health > 0);
       const killed = newMonsters.length < prev.monsters.length;
       const msg = killed ? `Slew a ${prev.monsterStats.type}! (${newMonsters.length} left)` : `Hit ${prev.monsterStats.type} — ${newMonsters.find(m => m.id === monsterId)?.health} HP`;
-      if (newMonsters.length === 0) {
-        const nextPhase: Phase = prev.level >= 12 ? 'victory' : 'levelEnd';
-        return { ...prev, monsters: [], phase: nextPhase, log: [...prev.log.slice(-20), msg, prev.level >= 12 ? "Victory! The Sceptre is yours!" : 'All enemies defeated!'] };
-      }
-      return { ...prev, monsters: newMonsters, spentAttack: prev.spentAttack + def, log: [...prev.log.slice(-20), msg] };
+      const next = { ...prev, monsters: newMonsters, spentAttack: prev.spentAttack + def, log: [...prev.log.slice(-20), msg] };
+      return newMonsters.length === 0 ? endOfCombat(next) : next;
     });
+  }, []);
+
+  const startBoss = useCallback(() => {
+    setGameState(prev => prev && prev.phase === 'bossIntro' ? buildBossState(prev) : prev);
   }, []);
 
   const endAdventurerPhase = useCallback(() => {
@@ -266,7 +427,7 @@ export default function App() {
   const computeMonsterMove = useCallback(() => {
     setGameState(prev => {
       if (!prev || prev.phase !== 'monsterMove') return prev;
-      const config = DUNGEON_CONFIGS[LEVEL_DEFS[prev.level - 1].configIndex];
+      const config = getConfig(prev);
       const movedMonsters = moveMonsters(prev.monsters, prev.adventurerPos, config, prev.monsterStats.speed, prev.monsterStats.range);
       const arrows: MovementArrow[] = prev.monsters
         .map(m => ({ id: m.id, from: m.pos, to: movedMonsters.find(nm => nm.id === m.id)!.pos }))
@@ -295,13 +456,13 @@ export default function App() {
   const runMonsterAttack = useCallback(() => {
     setGameState(prev => {
       if (!prev || prev.phase !== 'monsterAttack') return prev;
-      const config = DUNGEON_CONFIGS[LEVEL_DEFS[prev.level - 1].configIndex];
+      const config = getConfig(prev);
       const { damage, attackingIds } = calcMonsterDamage(prev.monsters, prev.adventurerPos, config, prev.totalStats.defense, prev.monsterStats.attack, prev.monsterStats.range);
       const newHealth = prev.adventurerHealth - damage;
       const msg = attackingIds.length === 0 ? 'No monsters in range — safe!' : `${attackingIds.length} monster(s): ${attackingIds.length * prev.monsterStats.attack} ATK ÷ ${prev.totalStats.defense} DEF = ${damage} dmg`;
       if (newHealth <= 0) return { ...prev, adventurerHealth: 0, phase: 'gameOver', log: [...prev.log.slice(-20), msg, 'You have fallen…'] };
       // classAbilityUsed intentionally NOT reset — class abilities are once per LEVEL
-      return { ...prev, adventurerHealth: newHealth, phase: 'energy', prevEnergyDice: prev.turnRoll ? [...prev.turnRoll] : null, energyDice: [0, 0, 0], assignedEnergy: { speed: null, attack: null, defense: null, range: null }, log: [...prev.log.slice(-20), msg, '── new turn ──'] };
+      return { ...prev, adventurerHealth: newHealth, phase: 'energy', prevEnergyDice: prev.turnRoll ? [...prev.turnRoll] : null, energyDice: [0, 0, 0], assignedEnergy: { speed: null, attack: null, defense: null, range: null }, chestSkillThisTurn: null, chestSpentThisTurn: 0, knightSlot: null, necroTargeting: false, log: [...prev.log.slice(-20), msg, '── new turn ──'] };
     });
   }, []);
 
@@ -314,43 +475,72 @@ export default function App() {
       if (choice === 'heal') { newHealth = 6; msg = 'Healed to full!'; }
       else { (newBase as Record<string, number>)[choice] += 1; msg = `${choice} → ${(newBase as Record<string, number>)[choice]}`; }
       const nextLevel = prev.level + 1;
-      return { ...buildLevelState(nextLevel, prev.characterClass, newBase, newHealth), log: [...prev.log.slice(-10), msg, `Level ${nextLevel}…`] };
+      return { ...buildLevelState(nextLevel, prev.characterClass, newBase, newHealth, prev.expansion), log: [...prev.log.slice(-10), msg, `Level ${nextLevel}…`] };
     });
   }, []);
 
   if (screen === 'title') return <TitleScreen onStart={() => setScreen('classSelect')} />;
-  if (screen === 'classSelect') return <ClassSelectScreen selected={characterClass} onSelect={setCharacterClass} onConfirm={() => startGame(characterClass)} />;
+  if (screen === 'classSelect') return <ClassSelectScreen selected={characterClass} onSelect={setCharacterClass} expansion={expansion} onToggleExpansion={setExpansion} onConfirm={() => startGame(characterClass, expansion)} />;
   if (!gameState) return null;
 
-  return <GameScreen state={gameState} rollEnergy={rollEnergy} useWizardReroll={useWizardReroll} usePaladinKeep={usePaladinKeep} useBarbarianReroll={useBarbarianReroll} selectDie={selectDie} assignDie={assignDie} unassignDie={unassignDie} confirmEnergy={confirmEnergy} handleTileClick={handleTileClick} handleMonsterClick={handleMonsterClick} endAdventurerPhase={endAdventurerPhase} computeMonsterMove={computeMonsterMove} confirmMonsterMove={confirmMonsterMove} runMonsterAttack={runMonsterAttack} chooseLevelReward={chooseLevelReward} onRestart={() => setScreen('title')} />;
+  return <GameScreen state={gameState} rollEnergy={rollEnergy} useWizardReroll={useWizardReroll} usePaladinKeep={usePaladinKeep} useBarbarianReroll={useBarbarianReroll} useRogueBoost={useRogueBoost} toggleNecroTargeting={toggleNecroTargeting} selectDie={selectDie} assignDie={assignDie} unassignDie={unassignDie} confirmEnergy={confirmEnergy} spendChestPoint={spendChestPoint} handleTileClick={handleTileClick} handleMonsterClick={handleMonsterClick} endAdventurerPhase={endAdventurerPhase} computeMonsterMove={computeMonsterMove} confirmMonsterMove={confirmMonsterMove} runMonsterAttack={runMonsterAttack} startBoss={startBoss} chooseLevelReward={chooseLevelReward} onRestart={() => setScreen('title')} />;
 }
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 
 const CLASSES: CharacterClass[] = ['none', 'paladin', 'barbarian', 'ranger', 'wizard'];
-const CLASS_ICONS: Record<CharacterClass, string> = { none: '🗡️', paladin: '🛡️', barbarian: '🪓', ranger: '🏹', wizard: '🔮' };
-const CLASS_NAMES: Record<CharacterClass, string> = { none: 'Adventurer', paladin: 'Paladin', barbarian: 'Barbarian', ranger: 'Ranger', wizard: 'Wizard' };
-const CLASS_IMG: Record<CharacterClass, string> = { none: advImg, paladin: paladinImg, barbarian: barbarianImg, ranger: rangerImg, wizard: wizardImg };
+const EXP_CLASSES: CharacterClass[] = ['necromancer', 'cleric', 'knight', 'rogue'];
+const CLASS_ICONS: Record<CharacterClass, string> = { none: '🗡️', paladin: '🛡️', barbarian: '🪓', ranger: '🏹', wizard: '🔮', necromancer: '☠️', cleric: '✨', knight: '⚔️', rogue: '🗡' };
+const CLASS_NAMES: Record<CharacterClass, string> = { none: 'Adventurer', paladin: 'Paladin', barbarian: 'Barbarian', ranger: 'Ranger', wizard: 'Wizard', necromancer: 'Necromancer', cleric: 'Cleric', knight: 'Knight', rogue: 'Rogue' };
+const CLASS_IMG: Record<CharacterClass, string> = { none: advImg, paladin: paladinImg, barbarian: barbarianImg, ranger: rangerImg, wizard: wizardImg, necromancer: necromancerImg, cleric: clericImg, knight: knightImg, rogue: rogueImg };
 const MONSTER_EMOJI: Record<string, string> = { Spider: '🕷️', Goblin: '👺', Skeleton: '💀', Orc: '👹', Troll: '🧌', Dragon: '🐉', 'Lich King': '☠️' };
 // Sprites extracted from the physical card photos
-const MONSTER_IMG: Record<string, string> = { Spider: spiderImg, Goblin: goblinImg, Skeleton: skeletonImg, Dragon: dragonImg };
+const MONSTER_IMG: Record<string, string> = {
+  Spider: spiderImg, Goblin: goblinImg, Skeleton: skeletonImg, Dragon: dragonImg,
+  'Orc Commander': bossOrcImg, 'Lich Commander': bossLichImg, 'Wyvern Commander': bossWyvernImg, "M'Guf-yn": bossMgufynImg,
+};
+const BOARD_IMG: Record<'lava' | 'ice', string> = { lava: boardLavaImg, ice: boardIceImg };
 const DIE_FACES = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 const PHASE_LABELS: Record<Phase, string> = {
   classSelect: 'Class', energy: 'Energy', energyAssign: 'Assign',
   adventurer: 'Your Turn', monsterMove: 'Monsters Move',
   monsterMoveAnimate: 'Preview', monsterAttack: 'Monsters Attack',
-  levelEnd: 'Level Clear', gameOver: 'Game Over', victory: '🏆 Victory',
+  bossIntro: '👹 Boss', levelEnd: 'Level Clear', gameOver: 'Game Over', victory: '🏆 Victory',
 };
+
+// Boss encountered after this level (expansion only)
+function bossForLevel(level: number): BossDef | undefined {
+  return BOSS_DEFS.find(b => b.afterLevel === level);
+}
+
+// Config for the current state (base level or boss card), with the closed
+// treasure chest blocking its tile like a wall
+function getConfig(state: GameState): DungeonConfig {
+  const base = state.isBossLevel
+    ? bossForLevel(state.level)!.config
+    : DUNGEON_CONFIGS[LEVEL_DEFS[state.level - 1].configIndex];
+  if (state.chest && !state.chest.opened) {
+    const grid = base.grid.map(r => [...r]);
+    grid[state.chest.pos.row][state.chest.pos.col] = 'wall';
+    return { ...base, grid };
+  }
+  return base;
+}
 
 // ── Title ─────────────────────────────────────────────────────────────────────
 
 function TitleScreen({ onStart }: { onStart: () => void }) {
   const [lb, setLb] = useState<LBEntry[] | null | 'loading'>('loading');
   useEffect(() => { loadLeaderboard().then(setLb); }, []);
-  // Hall of fame: heroes who cleared the dungeon, one trophy per victory
-  const fame: Array<[string, number]> = Array.isArray(lb)
-    ? [...lb.filter(e => e.won).reduce((m, e) => m.set(e.name, (m.get(e.name) ?? 0) + 1), new Map<string, number>())]
-        .sort((a, b) => b[1] - a[1])
+  // Hall of fame: heroes who cleared the dungeon — 🏆 per base victory,
+  // 👑 per expansion victory (M'Guf-yn slain)
+  const fame: Array<[string, { base: number; exp: number }]> = Array.isArray(lb)
+    ? [...lb.filter(e => e.won).reduce((m, e) => {
+        const cur = m.get(e.name) ?? { base: 0, exp: 0 };
+        if (e.exp) cur.exp += 1; else cur.base += 1;
+        return m.set(e.name, cur);
+      }, new Map<string, { base: number; exp: number }>())]
+        .sort((a, b) => (b[1].exp * 2 + b[1].base) - (a[1].exp * 2 + a[1].base))
     : [];
   return (
     <div className="screen title-screen">
@@ -364,7 +554,10 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
             {fame.map(([n, c]) => (
               <div key={n} className="fame-row">
                 <span className="fame-name">{n}</span>
-                <span className="fame-cups">{'🏆'.repeat(Math.min(c, 8))}{c > 8 ? ` ×${c}` : ''}</span>
+                <span className="fame-cups">
+                  {'👑'.repeat(Math.min(c.exp, 6))}{c.exp > 6 ? `×${c.exp} ` : ''}
+                  {'🏆'.repeat(Math.min(c.base, 6))}{c.base > 6 ? `×${c.base}` : ''}
+                </span>
               </div>
             ))}
           </div>
@@ -379,7 +572,7 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
               <span className="score-rank">{i + 1}</span>
               <span className="score-icon">{CLASS_ICONS[e.cls] ?? '🗡️'}</span>
               <span className="score-name">{e.name}</span>
-              <span className="score-result">{e.won ? '🏆' : '💀'} Lvl {e.level}</span>
+              <span className="score-result">{e.exp ? '😈 ' : ''}{e.won ? (e.exp ? '👑' : '🏆') : '💀'} Lvl {e.level}</span>
               <span className="score-date">{e.date}</span>
             </div>
           ))}
@@ -393,27 +586,48 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
 
 // ── Class Select ──────────────────────────────────────────────────────────────
 
-function ClassSelectScreen({ selected, onSelect, onConfirm }: { selected: CharacterClass; onSelect: (c: CharacterClass) => void; onConfirm: () => void }) {
+function ClassSelectScreen({ selected, onSelect, expansion, onToggleExpansion, onConfirm }: {
+  selected: CharacterClass; onSelect: (c: CharacterClass) => void;
+  expansion: boolean; onToggleExpansion: (v: boolean) => void; onConfirm: () => void;
+}) {
+  const pick = (cls: CharacterClass) => onSelect(cls);
+  const confirmDisabled = !expansion && EXP_CLASSES.includes(selected);
   return (
     <div className="screen class-screen">
       <h2>Choose Your Class</h2>
       <div className="class-grid">
         {CLASSES.map(cls => (
-          <button key={cls} className={`class-card ${selected === cls ? 'selected' : ''}`} onClick={() => onSelect(cls)}>
+          <button key={cls} className={`class-card ${selected === cls ? 'selected' : ''}`} onClick={() => pick(cls)}>
             <img className="class-img" src={CLASS_IMG[cls]} alt={CLASS_NAMES[cls]} />
             <span className="class-name">{CLASS_NAMES[cls]}</span>
             <span className="class-desc">{CLASS_DESCRIPTIONS[cls]}</span>
           </button>
         ))}
       </div>
-      <button className="btn btn-primary btn-large" onClick={onConfirm}>Enter as {CLASS_NAMES[selected]}</button>
+      <button className={`exp-toggle${expansion ? ' exp-on' : ''}`} onClick={() => { if (expansion && EXP_CLASSES.includes(selected)) onSelect('none'); onToggleExpansion(!expansion); }}>
+        <span className="exp-toggle-box">{expansion ? '✔' : ''}</span>
+        <span className="exp-toggle-label">😈 Extension M'Guf-yn Returns</span>
+        <span className="exp-toggle-desc">Boss, coffres au trésor & nouvelles classes</span>
+      </button>
+      {expansion && (
+        <div className="class-grid class-grid-exp">
+          {EXP_CLASSES.map(cls => (
+            <button key={cls} className={`class-card ${selected === cls ? 'selected' : ''}`} onClick={() => pick(cls)}>
+              <img className="class-img" src={CLASS_IMG[cls]} alt={CLASS_NAMES[cls]} />
+              <span className="class-name">{CLASS_NAMES[cls]}</span>
+              <span className="class-desc">{CLASS_DESCRIPTIONS[cls]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <button className="btn btn-primary btn-large" disabled={confirmDisabled} onClick={onConfirm}>Enter as {CLASS_NAMES[selected]}</button>
     </div>
   );
 }
 
 // ── End Screen (game over / victory) ─────────────────────────────────────────
 
-function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number; cls: CharacterClass; onRestart: () => void }) {
+function EndScreen({ won, level, cls, exp, onRestart }: { won: boolean; level: number; cls: CharacterClass; exp: boolean; onRestart: () => void }) {
   const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? '');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [rank, setRank] = useState(-1);
@@ -427,7 +641,7 @@ function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number
     // Freeze the entry on first attempt so retries stay idempotent
     let entry = pending;
     if (!entry) {
-      entry = { name: pseudo, cls, level, won, date: new Date().toLocaleDateString('fr-FR'), ts: Date.now() };
+      entry = { name: pseudo, cls, level, won, exp, date: new Date().toLocaleDateString('fr-FR'), ts: Date.now() };
       setPending(entry);
     }
     const r = await submitToLeaderboard(entry);
@@ -441,7 +655,7 @@ function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number
       <div className="end-content">
         <div className="end-icon">{won ? '🏆' : '💀'}</div>
         {won ? <h2>Victory!</h2> : <h2 className="game-over-title">GAME OVER</h2>}
-        <p className="end-subtitle">{won ? "The Sceptre of M'Guf-yn is yours!" : 'Your hero has fallen.'}</p>
+        <p className="end-subtitle">{won ? (exp ? "M'Guf-yn is defeated — the world is saved!" : "The Sceptre of M'Guf-yn is yours!") : 'Your hero has fallen.'}</p>
         {!won && <p>You reached level {level}.</p>}
         {status === 'saved' ? (
           <p className="save-confirm">✓ Score enregistré — {name.trim()}{rank >= 0 && rank < 20 ? ` · #${rank + 1} au classement` : ''}</p>
@@ -476,32 +690,57 @@ function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number
 interface GameScreenProps {
   state: GameState;
   rollEnergy: () => void; useWizardReroll: () => void; usePaladinKeep: (dieIdx: number) => void; useBarbarianReroll: () => void;
+  useRogueBoost: () => void; toggleNecroTargeting: () => void;
   selectDie: (i: number) => void; assignDie: (slot: 'speed' | 'attack' | 'defense' | 'range') => void;
   unassignDie: (slot: 'speed' | 'attack' | 'defense' | 'range') => void; confirmEnergy: () => void;
+  spendChestPoint: (skill: keyof BaseStats) => void;
   handleTileClick: (pos: Pos) => void; handleMonsterClick: (id: number) => void;
   endAdventurerPhase: () => void;
   computeMonsterMove: () => void; confirmMonsterMove: () => void;
-  runMonsterAttack: () => void;
+  runMonsterAttack: () => void; startBoss: () => void;
   chooseLevelReward: (c: 'heal' | 'speed' | 'attack' | 'defense' | 'range') => void;
   onRestart: () => void;
 }
 
 function GameScreen(props: GameScreenProps) {
   const { state } = props;
+  const boss = state.isBossLevel ? bossForLevel(state.level) : undefined;
   const def = LEVEL_DEFS[state.level - 1];
-  const config = DUNGEON_CONFIGS[def.configIndex];
+  const config = getConfig(state);
   const speedLeft = state.totalStats.speed - state.spentSpeed;
   const attackLeft = state.totalStats.attack - state.spentAttack;
 
-  const reachable = state.phase === 'adventurer'
+  const reachable = state.phase === 'adventurer' && !state.necroTargeting
     ? getReachableTiles(state.adventurerPos, speedLeft, config, state.monsters) : new Map<string, number>();
   const attackable = state.phase === 'adventurer'
-    ? getAttackableMonsters(state.adventurerPos, state.totalStats.range, attackLeft, config, state.monsters, state.monsterStats.defense) : [];
+    ? (state.necroTargeting
+        ? state.monsters.filter(m => rangeDistance(state.adventurerPos, m.pos, config) <= state.totalStats.range && hasLoS(state.adventurerPos, m.pos, config, state.monsters, [m.id])).map(m => m.id)
+        : getAttackableMonsters(state.adventurerPos, state.totalStats.range, attackLeft, config, state.monsters, state.monsterStats.defense))
+    : [];
   const inRangeMonsters = state.phase === 'monsterAttack'
     ? state.monsters.filter(m => rangeDistance(m.pos, state.adventurerPos, config) <= state.monsterStats.range && hasLoS(m.pos, state.adventurerPos, config, state.monsters, [m.id])).map(m => m.id) : [];
+  // Closed chest attackable?
+  const chestAttackable = state.phase === 'adventurer' && !state.necroTargeting && state.chest && !state.chest.opened
+    && rangeDistance(state.adventurerPos, state.chest.pos, config, false) <= state.totalStats.range
+    && hasLoS(state.adventurerPos, state.chest.pos, config, state.monsters)
+    && attackLeft >= state.chest.value;
 
   if (state.phase === 'gameOver' || state.phase === 'victory') {
-    return <EndScreen won={state.phase === 'victory'} level={state.level} cls={state.characterClass} onRestart={props.onRestart} />;
+    return <EndScreen won={state.phase === 'victory'} level={state.level} cls={state.characterClass} exp={state.expansion} onRestart={props.onRestart} />;
+  }
+  if (state.phase === 'bossIntro') {
+    const nextBoss = bossForLevel(state.level)!;
+    return (
+      <div className="screen end-screen boss-intro">
+        <div className="end-content">
+          <img className="boss-intro-img" src={MONSTER_IMG[nextBoss.stats.type]} alt={nextBoss.name} />
+          <h2 className="boss-intro-title">{nextBoss.name}</h2>
+          <p className="end-subtitle">{nextBoss.afterLevel >= 12 ? 'The lord of the underworld himself blocks your path!' : "One of M'Guf-yn's commanders blocks your path!"}</p>
+          <p>No healing or reward before the fight — the boss card extends level {state.level}.{state.chestPool > 0 ? ` Your chest loot (${state.chestPool} pts) carries over.` : ''}</p>
+          <button className="btn btn-danger btn-large" onClick={props.startBoss}>⚔️ Face the Boss</button>
+        </div>
+      </div>
+    );
   }
   if (state.phase === 'levelEnd') {
     return (
@@ -550,27 +789,50 @@ function GameScreen(props: GameScreenProps) {
       {/* Card zone: dungeon grid + monster strip, joined with no gap */}
       <div className="card-zone">
         <div className="dungeon-outer">
-          <div
-            className={`card-bg card-bg-${def.configIndex < 2 ? 'front' : 'back'}${def.configIndex === 1 || def.configIndex === 3 ? ' card-bg-flip' : ''}`}
-            style={{ backgroundImage: `url('${import.meta.env.BASE_URL}${def.configIndex < 2 ? 'IMG_2351' : 'IMG_2348'}.jpeg')` }}
-          />
-          <DungeonGrid config={config} state={state} reachable={reachable} attackable={attackable} inRangeMonsters={inRangeMonsters} onTileClick={props.handleTileClick} onMonsterClick={props.handleMonsterClick} />
+          {boss ? (
+            <div
+              className={`card-bg card-bg-boss${boss.flipped ? ' card-bg-flip' : ''}`}
+              style={{ backgroundImage: `url('${BOARD_IMG[boss.board]}')` }}
+            />
+          ) : (
+            <div
+              className={`card-bg card-bg-${def.configIndex < 2 ? 'front' : 'back'}${def.configIndex === 1 || def.configIndex === 3 ? ' card-bg-flip' : ''}`}
+              style={{ backgroundImage: `url('${import.meta.env.BASE_URL}${def.configIndex < 2 ? 'IMG_2351' : 'IMG_2348'}.jpeg')` }}
+            />
+          )}
+          <DungeonGrid config={config} state={state} reachable={reachable} attackable={attackable} inRangeMonsters={inRangeMonsters} chestAttackable={!!chestAttackable} onTileClick={props.handleTileClick} onMonsterClick={props.handleMonsterClick} />
           {state.phase === 'monsterMoveAnimate' && state.pendingMovements.length > 0 && (
             <MovementArrows movements={state.pendingMovements} cols={config.cols} rows={config.rows} />
           )}
         </div>
-        {/* Monster stats strip — bottom of card photo */}
-        <div className="monster-strip-wrap">
-          <div
-            className={`monster-strip-bg monster-strip-${def.configIndex < 2 ? 'front' : 'back'}${def.configIndex === 1 || def.configIndex === 3 ? ' monster-strip-flip' : ''}`}
-            style={{ backgroundImage: `url('${import.meta.env.BASE_URL}${def.configIndex < 2 ? 'IMG_2351' : 'IMG_2348'}.jpeg')` }}
-          />
-          <div className="monster-strip-overlay">
-            <div className="monster-alive">
-              {state.monsters.map(m => <span key={m.id} className={`alive-dot ${inRangeMonsters.includes(m.id) ? 'dot-danger' : ''}`}>{m.health}</span>)}
+        {boss ? (
+          /* Boss stats bar — replaces the card photo strip */
+          <div className="boss-bar">
+            <div className="boss-bar-portrait">
+              <img src={MONSTER_IMG[boss.stats.type]} alt={boss.name} />
+              <div className="adv-heart boss-heart">
+                <img src={heartIcon} alt="PV" />
+                <span className="adv-heart-val">{state.monsters[0]?.health ?? 0}</span>
+              </div>
+            </div>
+            <StatChip icon={bootsIcon} base={boss.stats.speed} energy={null} left={null} />
+            <StatChip icon={swordIcon} base={boss.stats.attack} energy={null} left={null} />
+            <StatChip icon={shieldIcon} base={boss.stats.defense} energy={null} left={null} />
+            <StatChip icon={bowIcon} base={boss.stats.range} energy={null} left={null} />
+          </div>
+        ) : (
+          <div className="monster-strip-wrap">
+            <div
+              className={`monster-strip-bg monster-strip-${def.configIndex < 2 ? 'front' : 'back'}${def.configIndex === 1 || def.configIndex === 3 ? ' monster-strip-flip' : ''}`}
+              style={{ backgroundImage: `url('${import.meta.env.BASE_URL}${def.configIndex < 2 ? 'IMG_2351' : 'IMG_2348'}.jpeg')` }}
+            />
+            <div className="monster-strip-overlay">
+              <div className="monster-alive">
+                {state.monsters.map(m => <span key={m.id} className={`alive-dot ${inRangeMonsters.includes(m.id) ? 'dot-danger' : ''}`}>{m.health}</span>)}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Phase controls */}
@@ -648,9 +910,9 @@ function StatChip({ icon, base, energy, left }: { icon: string; base: number; en
 
 // ── Dungeon Grid ──────────────────────────────────────────────────────────────
 
-function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, onTileClick, onMonsterClick }: {
+function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, chestAttackable, onTileClick, onMonsterClick }: {
   config: DungeonConfig; state: GameState; reachable: Map<string, number>;
-  attackable: number[]; inRangeMonsters: number[];
+  attackable: number[]; inRangeMonsters: number[]; chestAttackable: boolean;
   onTileClick: (pos: Pos) => void; onMonsterClick: (id: number) => void;
 }) {
   return (
@@ -660,6 +922,8 @@ function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, on
           const key = `${r},${c}`;
           const isAdv = state.adventurerPos.row === r && state.adventurerPos.col === c;
           const monster = state.monsters.find(m => m.pos.row === r && m.pos.col === c);
+          const isBossToken = monster !== undefined && state.isBossLevel;
+          const chestHere = state.chest && !state.chest.opened && state.chest.pos.row === r && state.chest.pos.col === c;
           // During animate phase, also highlight destination tiles
           const isDestination = state.phase === 'monsterMoveAnimate' &&
             state.pendingMovements.some(a => a.to.row === r && a.to.col === c);
@@ -670,17 +934,24 @@ function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, on
           if (isAttackable) cls += ' tile-attackable';
           if (isInRange) cls += ' tile-in-range';
           if (isDestination) cls += ' tile-destination';
+          if (chestHere && chestAttackable) cls += ' tile-attackable';
           return (
             <div key={key} className={cls} onClick={() => {
               if (monster && attackable.includes(monster.id)) onMonsterClick(monster.id);
+              else if (chestHere) onTileClick({ row: r, col: c });
               else if (reachable.has(key)) onTileClick({ row: r, col: c });
             }}>
-              {tile === 'stairs' && !isAdv && <span className="tile-icon">🪜</span>}
+              {tile === 'stairs' && !isAdv && !chestHere && <span className="tile-icon">🪜</span>}
+              {chestHere && (
+                <div className="chest-token">
+                  <span className="chest-die">{state.chest!.value}</span>
+                </div>
+              )}
               {isAdv && <img src={CLASS_IMG[state.characterClass]} className="adv-icon" alt="adventurer" />}
               {monster && (
                 <div className="monster-token">
                   {MONSTER_IMG[monster.type]
-                    ? <img className="monster-img" src={MONSTER_IMG[monster.type]} alt={monster.type} />
+                    ? <img className={`monster-img${isBossToken ? ' monster-img-boss' : ''}`} src={MONSTER_IMG[monster.type]} alt={monster.type} />
                     : <span className="monster-emoji">{MONSTER_EMOJI[monster.type] ?? '👾'}</span>}
                   <span className="monster-hp">{monster.health}</span>
                 </div>
@@ -745,9 +1016,24 @@ function PhaseControls(props: GameScreenProps) {
             <button className="btn btn-class" onClick={() => props.assignDie('range')}>🏹+</button>
           )}
         </div>
+        {state.chestPool > 0 && (
+          <div className="chest-spend">
+            <span className="chest-spend-label">🧰 <b>{state.chestPool}</b> loot pts{state.chestSkillThisTurn ? ` → ${state.chestSkillThisTurn}` : ''}{state.chestSpentThisTurn > 0 ? ` (+${state.chestSpentThisTurn})` : ''}</span>
+            <div className="chest-spend-row">
+              {(['speed', 'attack', 'defense', 'range'] as const).map(sk => {
+                const icons = { speed: '👟', attack: '⚔️', defense: '🛡️', range: '🏹' };
+                const locked = state.chestSkillThisTurn !== null && state.chestSkillThisTurn !== sk;
+                return <button key={sk} className="btn btn-chest" disabled={locked} onClick={() => props.spendChestPoint(sk)}>{icons[sk]}+1</button>;
+              })}
+            </div>
+          </div>
+        )}
         {ready && <button className="btn btn-primary btn-large" onClick={props.confirmEnergy}>Valider →</button>}
         {state.characterClass === 'wizard' && !state.classAbilityUsed && (
           <button className="btn btn-class" onClick={props.useWizardReroll}>🔮 Reroll all</button>
+        )}
+        {state.characterClass === 'rogue' && !state.classAbilityUsed && (
+          <button className="btn btn-class" onClick={props.useRogueBoost}>🗡 +1 to all dice</button>
         )}
         {state.characterClass === 'barbarian' && state.adventurerHealth === 1 && !state.barbarianRerolled && (
           <button className="btn btn-danger" onClick={props.useBarbarianReroll}>🪓 Barbarian Rage!</button>
@@ -759,10 +1045,20 @@ function PhaseControls(props: GameScreenProps) {
   if (state.phase === 'adventurer') {
     return (
       <div className="controls-inner">
-        <div className="action-hint">
-          <span className="hint-move">■ Move</span> 2pts ortho · 3pts diag &nbsp;
-          <span className="hint-attack">■ Attack</span> cost {state.monsterStats.defense}
-        </div>
+        {state.necroTargeting ? (
+          <div className="action-hint necro-hint">☠️ Choose a target within range (−1 Life, 1 damage)</div>
+        ) : (
+          <div className="action-hint">
+            <span className="hint-move">■ Move</span> 2pts ortho · 3pts diag &nbsp;
+            <span className="hint-attack">■ Attack</span> cost {state.monsterStats.defense}
+            {state.chest && !state.chest.opened ? <> &nbsp;<span className="hint-chest">■ Chest</span> cost {state.chest.value}</> : null}
+          </div>
+        )}
+        {state.characterClass === 'necromancer' && !state.classAbilityUsed && state.adventurerHealth > 1 && state.monsters.length > 0 && (
+          <button className={`btn ${state.necroTargeting ? 'btn-secondary' : 'btn-class'}`} onClick={props.toggleNecroTargeting}>
+            {state.necroTargeting ? 'Cancel sacrifice' : '☠️ Sacrifice: 1 Life → 1 dmg'}
+          </button>
+        )}
         <button className="btn btn-secondary btn-large" onClick={props.endAdventurerPhase}>End Turn →</button>
       </div>
     );

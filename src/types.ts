@@ -50,7 +50,10 @@ export interface MovementArrow {
   to: Pos;
 }
 
-export type CharacterClass = 'none' | 'paladin' | 'barbarian' | 'ranger' | 'wizard';
+export type CharacterClass =
+  | 'none' | 'paladin' | 'barbarian' | 'ranger' | 'wizard'
+  /* M'Guf-yn Returns expansion classes */
+  | 'necromancer' | 'cleric' | 'knight' | 'rogue';
 
 export type Phase =
   | 'classSelect'
@@ -60,9 +63,28 @@ export type Phase =
   | 'monsterMove'
   | 'monsterMoveAnimate'
   | 'monsterAttack'
+  | 'bossIntro'
   | 'levelEnd'
   | 'gameOver'
   | 'victory';
+
+/* M'Guf-yn Returns: boss encountered after levels 3, 6, 9 and 12 */
+export interface BossDef {
+  afterLevel: number;
+  name: string;
+  board: 'lava' | 'ice';
+  flipped: boolean;
+  config: DungeonConfig;
+  startPos: Pos;
+  stats: MonsterStats;
+}
+
+/* Treasure chest (yellow die) state */
+export interface ChestState {
+  pos: Pos;
+  value: number;   // defense/loot value while closed
+  opened: boolean;
+}
 
 export interface BaseStats {
   speed: number;
@@ -94,4 +116,13 @@ export interface GameState {
   log: string[];
   selectedDie: number | null;
   pendingMovements: MovementArrow[];
+  /* ── M'Guf-yn Returns expansion ── */
+  expansion: boolean;
+  isBossLevel: boolean;
+  chest: ChestState | null;
+  chestPool: number;                    // loot points left from the opened chest
+  chestSkillThisTurn: keyof BaseStats | null; // chest points go to one skill per turn
+  chestSpentThisTurn: number;           // points already added to that skill this turn
+  knightSlot: 'speed' | 'attack' | 'defense' | null; // slot doubled by the knight
+  necroTargeting: boolean;              // necromancer picking a sacrifice target
 }

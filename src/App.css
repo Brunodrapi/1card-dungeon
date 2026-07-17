@@ -189,7 +189,8 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
      1.27 = 1 (grid) + 295/1110 (strip height ratio) */
   width: min(100vw, calc((100dvh - 330px) / 1.27), 480px);
   aspect-ratio: 1;
-  overflow: hidden;
+  /* visible so tall boss sprites can overflow past the board edge */
+  overflow: visible;
 }
 
 /* Card photo background — crop so the 5×5 grid fills the square */
@@ -213,6 +214,11 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 /* Configs 1 & 3 use the card rotated 180° */
 .card-bg-flip {
   transform: rotate(180deg);
+}
+/* Boss boards are pre-cropped to the 5×5 grid */
+.card-bg-boss {
+  background-size: 100% 100%;
+  background-position: center;
 }
 
 .dungeon-grid {
@@ -272,6 +278,19 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   image-rendering: pixelated;
   filter: drop-shadow(0 0 4px rgba(0,0,0,.9)) drop-shadow(0 1px 2px #000);
 }
+/* Bosses are tall: anchor feet to the tile, let the head overflow above */
+.monster-img-boss {
+  position: absolute;
+  bottom: 2%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  max-width: 110%;
+  height: 190%;
+  object-fit: contain;
+  object-position: bottom;
+  pointer-events: none;
+}
 .monster-hp {
   position: absolute; top: 3%; right: 3%;
   font-family: 'PixelNum', monospace;
@@ -279,6 +298,90 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   background: rgba(0,0,0,.8); border-radius: 3px; padding: 2px 3px;
 }
 .monster-emoji { font-size: clamp(1.3rem, 7vw, 2.6rem); line-height: 1; }
+
+/* ── Treasure chest (yellow die) ─────────────────────────────────────────────── */
+.chest-token {
+  position: absolute; inset: 12%;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, #f5d442, #d4a017);
+  border: 2px solid #8a6a10;
+  border-radius: 14%;
+  box-shadow: 0 2px 6px rgba(0,0,0,.6), inset 0 1px 3px rgba(255,255,255,.5);
+}
+.chest-die {
+  font-family: 'PixelNum', monospace;
+  font-size: clamp(.9rem, 4.5vw, 1.7rem);
+  color: #4a3505;
+}
+
+/* ── Boss bar (replaces the card photo strip on boss levels) ─────────────────── */
+.boss-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .35rem;
+  padding: .35rem .6rem;
+  width: min(100vw, calc((100dvh - 330px) / 1.27), 480px);
+  background: #0b0620;
+  border-top: 2px solid var(--red);
+  flex-shrink: 0;
+}
+.boss-bar-portrait { position: relative; flex-shrink: 0; padding-right: 14px; }
+.boss-bar-portrait > img { height: 58px; width: auto; object-fit: contain; image-rendering: pixelated; }
+.boss-heart { top: -4px; }
+
+/* ── Expansion toggle & chest spending ───────────────────────────────────────── */
+.exp-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: .6rem;
+  align-items: center;
+  text-align: left;
+  background: var(--bg2);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: .55rem .8rem;
+  cursor: pointer;
+  color: var(--text);
+  width: 100%;
+  max-width: 560px;
+}
+.exp-toggle.exp-on { border-color: var(--purple); box-shadow: 0 0 12px rgba(122,68,170,.35); }
+.exp-toggle-box {
+  grid-row: span 2;
+  width: 22px; height: 22px;
+  border: 2px solid var(--dim);
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; color: var(--gold-l);
+}
+.exp-on .exp-toggle-box { border-color: var(--purple); background: rgba(122,68,170,.25); }
+.exp-toggle-label { font-weight: 700; color: var(--gold-l); }
+.exp-toggle-desc { font-size: .7rem; color: var(--dim); }
+.class-grid-exp .class-card.selected { border-color: var(--purple); box-shadow: 0 0 12px rgba(122,68,170,.4); }
+
+.chest-spend {
+  display: flex; flex-direction: column; align-items: center; gap: .3rem;
+  background: rgba(212,160,23,.08);
+  border: 1px solid #8a6a10;
+  border-radius: 8px;
+  padding: .35rem .6rem;
+}
+.chest-spend-label { font-size: .78rem; color: var(--gold-l); }
+.chest-spend-row { display: flex; gap: .4rem; }
+.btn-chest { background: linear-gradient(160deg, #f5d442, #d4a017); color: #4a3505; font-weight: 800; padding: .3rem .6rem; }
+.hint-chest { color: #f5d442; }
+.necro-hint { color: #b088d0; font-weight: 700; }
+
+/* ── Boss intro screen ───────────────────────────────────────────────────────── */
+.boss-intro-img { height: 130px; image-rendering: pixelated; filter: drop-shadow(0 0 18px rgba(184,48,48,.5)); }
+.boss-intro-title {
+  font-family: 'PixelNum', monospace;
+  font-size: clamp(1.1rem, 6vw, 1.7rem);
+  color: var(--red-l) !important;
+  text-shadow: 0 0 20px rgba(224,80,80,.4), 0 2px 0 #000;
+}
 
 /* ── Monster strip (card photo — bottom section of the card) ─────────────────── */
 /* Height = 295px / 1110px × 100% of width = 26.6% of width */
