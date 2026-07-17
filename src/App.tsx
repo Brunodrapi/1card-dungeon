@@ -300,7 +300,8 @@ export default function App() {
       const newHealth = prev.adventurerHealth - damage;
       const msg = attackingIds.length === 0 ? 'No monsters in range — safe!' : `${attackingIds.length} monster(s): ${attackingIds.length * prev.monsterStats.attack} ATK ÷ ${prev.totalStats.defense} DEF = ${damage} dmg`;
       if (newHealth <= 0) return { ...prev, adventurerHealth: 0, phase: 'gameOver', log: [...prev.log.slice(-20), msg, 'You have fallen…'] };
-      return { ...prev, adventurerHealth: newHealth, phase: 'energy', prevEnergyDice: prev.turnRoll ? [...prev.turnRoll] : null, energyDice: [0, 0, 0], assignedEnergy: { speed: null, attack: null, defense: null, range: null }, classAbilityUsed: false, log: [...prev.log.slice(-20), msg, '── new turn ──'] };
+      // classAbilityUsed intentionally NOT reset — class abilities are once per LEVEL
+      return { ...prev, adventurerHealth: newHealth, phase: 'energy', prevEnergyDice: prev.turnRoll ? [...prev.turnRoll] : null, energyDice: [0, 0, 0], assignedEnergy: { speed: null, attack: null, defense: null, range: null }, log: [...prev.log.slice(-20), msg, '── new turn ──'] };
     });
   }, []);
 
