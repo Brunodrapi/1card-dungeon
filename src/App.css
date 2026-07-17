@@ -97,12 +97,13 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   flex-shrink: 0;
 }
 .header-banner {
-  height: 20px;
+  height: 46px;
   width: auto;
-  max-width: 48%;
+  max-width: 46%;
   object-fit: contain;
   image-rendering: pixelated;
-  border-radius: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
   margin-right: auto;
 }
 .level-badge { background: var(--gold); color: #111; font-size: .75rem; font-weight: 800; padding: .15rem .5rem; border-radius: 4px; }
@@ -175,7 +176,7 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   /* fill available width; also cap by available height so grid + monster
      strip + fixed chrome (header, hero bar, controls, log ≈ 300px) always fit:
      1.27 = 1 (grid) + 295/1110 (strip height ratio) */
-  width: min(100vw, calc((100dvh - 300px) / 1.27), 480px);
+  width: min(100vw, calc((100dvh - 330px) / 1.27), 480px);
   aspect-ratio: 1;
   overflow: hidden;
 }
@@ -272,7 +273,7 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 /* Height = 295px / 1110px × 100% of width = 26.6% of width */
 .monster-strip-wrap {
   position: relative;
-  width: min(100vw, calc((100dvh - 300px) / 1.27), 480px);
+  width: min(100vw, calc((100dvh - 330px) / 1.27), 480px);
   aspect-ratio: 1110 / 295;
   overflow: hidden;
   flex-shrink: 0;
