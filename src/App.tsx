@@ -525,10 +525,10 @@ function GameScreen(props: GameScreenProps) {
     <div className="game-layout">
       {/* Header */}
       <div className="game-header">
-        <img className="header-banner" src={bannerImg} alt="One Card Dungeon" />
         <span className="level-badge">Lvl {state.level}/12</span>
+        <img className="header-banner" src={bannerImg} alt="One Card Dungeon" />
         <span className={`phase-badge phase-${state.phase}`}>{PHASE_LABELS[state.phase]}</span>
-        <button className="btn-restart" onClick={props.onRestart}>✕</button>
+        <button className="btn-restart" onClick={props.onRestart}>EXIT</button>
       </div>
 
       {/* Adventurer strip — mirrors the monster strip below the grid */}
