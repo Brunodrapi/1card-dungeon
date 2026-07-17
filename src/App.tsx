@@ -548,7 +548,7 @@ function GameScreen(props: GameScreenProps) {
 
       {/* Log */}
       <div className="log-strip">
-        {[...state.log].reverse().slice(0, 5).map((entry, i) => (
+        {[...state.log].reverse().slice(0, 4).map((entry, i) => (
           <span key={i} className={`log-item ${entry.startsWith('──') ? 'log-sep' : ''}`}>{entry}</span>
         ))}
       </div>

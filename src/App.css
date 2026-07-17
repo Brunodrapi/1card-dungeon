@@ -157,8 +157,10 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 }
 .dungeon-outer {
   position: relative;
-  /* fill available width; also cap by available height so grid is always fully visible */
-  width: min(100vw, calc(100dvh - 270px), 480px);
+  /* fill available width; also cap by available height so grid + monster
+     strip + fixed chrome (header, hero bar, controls, log ≈ 300px) always fit:
+     1.27 = 1 (grid) + 295/1110 (strip height ratio) */
+  width: min(100vw, calc((100dvh - 300px) / 1.27), 480px);
   aspect-ratio: 1;
   overflow: hidden;
 }
@@ -255,7 +257,7 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 /* Height = 295px / 1110px × 100% of width = 26.6% of width */
 .monster-strip-wrap {
   position: relative;
-  width: min(100vw, calc(100dvh - 270px), 480px);
+  width: min(100vw, calc((100dvh - 300px) / 1.27), 480px);
   aspect-ratio: 1110 / 295;
   overflow: hidden;
   flex-shrink: 0;
@@ -328,7 +330,6 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   padding: .35rem .75rem;
   background: var(--bg2);
   border-top: 1px solid var(--border);
-  max-height: 76px;
   overflow: hidden;
   flex-shrink: 0;
 }
