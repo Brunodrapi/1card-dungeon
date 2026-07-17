@@ -412,8 +412,9 @@ function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number
     <div className={`screen end-screen${won ? ' victory' : ''}`}>
       <div className="end-content">
         <div className="end-icon">{won ? '🏆' : '💀'}</div>
-        <h2>{won ? 'Victory!' : 'Fallen Hero'}</h2>
-        <p>{won ? "The Sceptre of M'Guf-yn is yours!" : `You reached level ${level}.`}</p>
+        {won ? <h2>Victory!</h2> : <h2 className="game-over-title">GAME OVER</h2>}
+        <p className="end-subtitle">{won ? "The Sceptre of M'Guf-yn is yours!" : 'Your hero has fallen.'}</p>
+        {!won && <p>You reached level {level}.</p>}
         {status === 'saved' ? (
           <p className="save-confirm">✓ Score enregistré — {name.trim()}{rank >= 0 && rank < 20 ? ` · #${rank + 1} au classement` : ''}</p>
         ) : (
@@ -436,7 +437,7 @@ function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number
             {status === 'error' && <p className="save-error">Impossible d'enregistrer en ligne — réessaie.</p>}
           </div>
         )}
-        <button className="btn btn-secondary" onClick={onRestart}>{won ? 'Play Again' : 'Try Again'}</button>
+        <button className="btn btn-secondary" onClick={onRestart}>{won ? 'Play Again' : 'New Run'}</button>
       </div>
     </div>
   );

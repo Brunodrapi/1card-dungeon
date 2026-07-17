@@ -344,6 +344,14 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .end-content h2 { font-size: 2rem; color: var(--gold); }
 .end-content p  { color: var(--dim); }
 .victory .end-content h2 { color: var(--gold-l); text-shadow: 0 0 20px rgba(200,168,75,.5); }
+.game-over-title {
+  font-family: 'PixelNum', monospace;
+  font-size: clamp(1.6rem, 9vw, 2.6rem) !important;
+  color: var(--red-l) !important;
+  letter-spacing: .04em;
+  text-shadow: 0 0 24px rgba(224,80,80,.45), 0 3px 0 #000;
+}
+.end-subtitle { color: var(--text) !important; font-size: 1.05rem; }
 .name-entry { display: flex; gap: .5rem; width: 100%; max-width: 300px; }
 .name-input {
   flex: 1;
