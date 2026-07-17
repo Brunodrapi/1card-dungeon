@@ -70,18 +70,19 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .btn-slot     { background: var(--bg3);    color: var(--text); border: 1px solid var(--border); }
 .btn-slot-filled { border-color: var(--gold); color: var(--gold-l); }
 .btn-restart  {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--dim);
+  background: var(--red);
+  border: none;
+  border-radius: 5px;
+  color: #fff;
   cursor: pointer;
   font-size: .65rem;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: .06em;
-  padding: .25rem .45rem;
+  padding: .3rem .5rem;
   line-height: 1;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
-.btn-restart:hover { color: var(--text); border-color: var(--dim); }
+.btn-restart:hover { filter: brightness(1.15); }
 .btn-reward   { background: var(--bg3); color: var(--text); border: 1px solid var(--border); padding: .65rem .8rem; border-radius: 6px; cursor: pointer; font-weight: 600; transition: border-color .15s; }
 .btn-reward:hover { border-color: var(--gold); color: var(--gold-l); }
 .btn-large  { font-size: 1rem; padding: .65rem 1.4rem; width: 100%; }
