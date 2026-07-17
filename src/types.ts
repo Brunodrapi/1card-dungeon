@@ -88,6 +88,9 @@ export interface GameState {
   classAbilityUsed: boolean;
   barbarianRerolled: boolean;
   prevEnergyDice: number[] | null;
+  /* Snapshot of the dice as rolled this turn (energyDice entries are
+     consumed to -1 on assignment) — becomes prevEnergyDice next turn */
+  turnRoll: number[] | null;
   log: string[];
   selectedDie: number | null;
   pendingMovements: MovementArrow[];

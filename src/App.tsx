@@ -111,6 +111,7 @@ function buildLevelState(level: number, characterClass: CharacterClass, baseStat
     classAbilityUsed: false,
     barbarianRerolled: false,
     prevEnergyDice: null,
+    turnRoll: null,
     log: [`Level ${level}: ${def.monsterStats.type}s appear!`],
     selectedDie: null,
     pendingMovements: [],
@@ -131,7 +132,7 @@ export default function App() {
     setGameState(prev => {
       if (!prev) return prev;
       const dice = rollDice(3);
-      return { ...prev, energyDice: dice, phase: 'energyAssign' as Phase, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, log: [...prev.log.slice(-20), `Rolled: ${dice.join(', ')}`] };
+      return { ...prev, energyDice: dice, turnRoll: [...dice], phase: 'energyAssign' as Phase, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, log: [...prev.log.slice(-20), `Rolled: ${dice.join(', ')}`] };
     });
   }, []);
 
@@ -139,14 +140,19 @@ export default function App() {
     setGameState(prev => {
       if (!prev || prev.classAbilityUsed) return prev;
       const dice = rollDice(3);
-      return { ...prev, energyDice: dice, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, classAbilityUsed: true, log: [...prev.log.slice(-20), `Wizard rerolls: ${dice.join(', ')}`] };
+      return { ...prev, energyDice: dice, turnRoll: [...dice], assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, classAbilityUsed: true, log: [...prev.log.slice(-20), `Wizard rerolls: ${dice.join(', ')}`] };
     });
   }, []);
 
-  const usePaladinKeep = useCallback(() => {
+  // Paladin: lock one die from the previous turn, roll the other two
+  const usePaladinKeep = useCallback((dieIdx: number) => {
     setGameState(prev => {
-      if (!prev || prev.classAbilityUsed || !prev.prevEnergyDice) return prev;
-      return { ...prev, energyDice: prev.prevEnergyDice, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, classAbilityUsed: true, log: [...prev.log.slice(-20), `Paladin keeps: ${prev.prevEnergyDice.join(', ')}`] };
+      if (!prev || prev.phase !== 'energy' || prev.classAbilityUsed || !prev.prevEnergyDice) return prev;
+      const kept = prev.prevEnergyDice[dieIdx];
+      if (kept === undefined || kept < 1) return prev;
+      const rolled = rollDice(2);
+      const dice = [kept, ...rolled];
+      return { ...prev, energyDice: dice, turnRoll: [...dice], phase: 'energyAssign' as Phase, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, classAbilityUsed: true, log: [...prev.log.slice(-20), `Paladin keeps ${kept} · rolls ${rolled.join(', ')}`] };
     });
   }, []);
 
@@ -154,7 +160,7 @@ export default function App() {
     setGameState(prev => {
       if (!prev || prev.adventurerHealth !== 1 || prev.barbarianRerolled) return prev;
       const dice = rollDice(3);
-      return { ...prev, energyDice: dice, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, barbarianRerolled: true, log: [...prev.log.slice(-20), `Barbarian rage: ${dice.join(', ')}`] };
+      return { ...prev, energyDice: dice, turnRoll: [...dice], assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, barbarianRerolled: true, log: [...prev.log.slice(-20), `Barbarian rage: ${dice.join(', ')}`] };
     });
   }, []);
 
@@ -294,7 +300,7 @@ export default function App() {
       const newHealth = prev.adventurerHealth - damage;
       const msg = attackingIds.length === 0 ? 'No monsters in range — safe!' : `${attackingIds.length} monster(s): ${attackingIds.length * prev.monsterStats.attack} ATK ÷ ${prev.totalStats.defense} DEF = ${damage} dmg`;
       if (newHealth <= 0) return { ...prev, adventurerHealth: 0, phase: 'gameOver', log: [...prev.log.slice(-20), msg, 'You have fallen…'] };
-      return { ...prev, adventurerHealth: newHealth, phase: 'energy', prevEnergyDice: [...prev.energyDice], energyDice: [0, 0, 0], assignedEnergy: { speed: null, attack: null, defense: null, range: null }, classAbilityUsed: false, log: [...prev.log.slice(-20), msg, '── new turn ──'] };
+      return { ...prev, adventurerHealth: newHealth, phase: 'energy', prevEnergyDice: prev.turnRoll ? [...prev.turnRoll] : null, energyDice: [0, 0, 0], assignedEnergy: { speed: null, attack: null, defense: null, range: null }, classAbilityUsed: false, log: [...prev.log.slice(-20), msg, '── new turn ──'] };
     });
   }, []);
 
@@ -468,7 +474,7 @@ function EndScreen({ won, level, cls, onRestart }: { won: boolean; level: number
 
 interface GameScreenProps {
   state: GameState;
-  rollEnergy: () => void; useWizardReroll: () => void; usePaladinKeep: () => void; useBarbarianReroll: () => void;
+  rollEnergy: () => void; useWizardReroll: () => void; usePaladinKeep: (dieIdx: number) => void; useBarbarianReroll: () => void;
   selectDie: (i: number) => void; assignDie: (slot: 'speed' | 'attack' | 'defense' | 'range') => void;
   unassignDie: (slot: 'speed' | 'attack' | 'defense' | 'range') => void; confirmEnergy: () => void;
   handleTileClick: (pos: Pos) => void; handleMonsterClick: (id: number) => void;
@@ -697,7 +703,14 @@ function PhaseControls(props: GameScreenProps) {
       <div className="controls-inner">
         <button className="btn btn-primary btn-large" onClick={props.rollEnergy}>🎲 Roll Energy</button>
         {state.characterClass === 'paladin' && state.prevEnergyDice && !state.classAbilityUsed && (
-          <button className="btn btn-class" onClick={props.usePaladinKeep}>🛡️ Keep prev ({state.prevEnergyDice.join(', ')})</button>
+          <div className="paladin-keep">
+            <span className="paladin-keep-label">🛡️ Keep a die, roll the other two:</span>
+            <div className="dice-row">
+              {state.prevEnergyDice.map((d, i) => (
+                <button key={i} className="die" onClick={() => props.usePaladinKeep(i)}>{DIE_FACES[d]}</button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     );
