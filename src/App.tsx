@@ -334,6 +334,11 @@ const PHASE_LABELS: Record<Phase, string> = {
 function TitleScreen({ onStart }: { onStart: () => void }) {
   const [lb, setLb] = useState<LBEntry[] | null | 'loading'>('loading');
   useEffect(() => { loadLeaderboard().then(setLb); }, []);
+  // Hall of fame: heroes who cleared the dungeon, one trophy per victory
+  const fame: Array<[string, number]> = Array.isArray(lb)
+    ? [...lb.filter(e => e.won).reduce((m, e) => m.set(e.name, (m.get(e.name) ?? 0) + 1), new Map<string, number>())]
+        .sort((a, b) => b[1] - a[1])
+    : [];
   return (
     <div className="screen title-screen">
       <div className="title-content">
@@ -341,8 +346,19 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
         <h1>1 Card Dungeon</h1>
         <p className="subtitle">Solo dungeon crawl · 12 levels</p>
         <button className="btn btn-primary btn-large" onClick={onStart}>Begin Adventure</button>
+        {fame.length > 0 && (
+          <div className="score-list fame-list">
+            <div className="score-heading">👑 Hall of Fame</div>
+            {fame.map(([n, c]) => (
+              <div key={n} className="fame-row">
+                <span className="fame-name">{n}</span>
+                <span className="fame-cups">{'🏆'.repeat(Math.min(c, 8))}{c > 8 ? ` ×${c}` : ''}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="score-list">
-          <div className="score-heading">🏆 Tableau des meilleurs héros</div>
+          <div className="score-heading">Meilleurs runs</div>
           {lb === 'loading' && <div className="score-empty">Chargement…</div>}
           {lb === null && <div className="score-empty">Classement indisponible</div>}
           {Array.isArray(lb) && lb.length === 0 && <div className="score-empty">Aucun score — sois le premier !</div>}
@@ -351,7 +367,7 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
               <span className="score-rank">{i + 1}</span>
               <span className="score-icon">{CLASS_ICONS[e.cls] ?? '🗡️'}</span>
               <span className="score-name">{e.name}</span>
-              <span className="score-result">{e.won ? '🏆 Victory' : `Lvl ${e.level}`}</span>
+              <span className="score-result">{e.won ? '🏆' : '💀'} Lvl {e.level}</span>
               <span className="score-date">{e.date}</span>
             </div>
           ))}

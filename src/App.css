@@ -416,6 +416,11 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .score-icon { font-size: 1rem; flex-shrink: 0; }
 .score-rank { min-width: 1.1rem; text-align: right; font-weight: 800; color: var(--dim); font-size: .7rem; flex-shrink: 0; }
 .score-empty { font-size: .75rem; color: var(--dim); padding: .3rem 0; }
+.fame-list { border-color: var(--gold); box-shadow: 0 0 14px rgba(200,168,75,.15); }
+.fame-list .score-heading { color: var(--gold-l); }
+.fame-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .15rem 0; }
+.fame-name { font-weight: 700; color: var(--gold-l); }
+.fame-cups { font-size: .85rem; letter-spacing: .05em; }
 .score-name { flex: 1; font-weight: 600; }
 .score-result { font-weight: 700; color: var(--gold-l); min-width: 70px; text-align: right; }
 .score-won .score-result { color: var(--gold); }
