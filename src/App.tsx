@@ -17,6 +17,11 @@ import paladinImg from './assets/class-paladin.png';
 import barbarianImg from './assets/class-barbarian.png';
 import rangerImg from './assets/class-ranger.png';
 import wizardImg from './assets/class-wizard.png';
+import bootsIcon from './assets/icon-boots.png';
+import swordIcon from './assets/icon-sword.png';
+import shieldIcon from './assets/icon-shield.png';
+import bowIcon from './assets/icon-bow.png';
+import heartIcon from './assets/icon-heart.png';
 import spiderImg from './assets/monster-spider.png';
 import goblinImg from './assets/monster-goblin.png';
 import skeletonImg from './assets/monster-skeleton.png';
@@ -495,14 +500,19 @@ function GameScreen(props: GameScreenProps) {
         <button className="btn-restart" onClick={props.onRestart}>✕</button>
       </div>
 
-      {/* Adventurer stat bar */}
+      {/* Adventurer strip — mirrors the monster strip below the grid */}
       <div className="adv-bar">
-        <img className="adv-class-img" src={CLASS_IMG[state.characterClass]} alt={CLASS_NAMES[state.characterClass]} />
-        <div className="hearts-row">{Array(6).fill(0).map((_, i) => <span key={i} className={i < state.adventurerHealth ? 'heart-full' : 'heart-empty'}>♥</span>)}</div>
-        <StatChip label="SPD" base={state.baseStats.speed} energy={state.assignedEnergy.speed} left={state.phase === 'adventurer' ? speedLeft : null} />
-        <StatChip label="ATK" base={state.baseStats.attack} energy={state.assignedEnergy.attack} left={state.phase === 'adventurer' ? attackLeft : null} />
-        <StatChip label="DEF" base={state.baseStats.defense} energy={state.assignedEnergy.defense} left={null} />
-        <StatChip label="RNG" base={state.totalStats.range} energy={null} left={null} />
+        <div className="adv-portrait">
+          <img className="adv-class-img" src={CLASS_IMG[state.characterClass]} alt={CLASS_NAMES[state.characterClass]} />
+          <div className="adv-heart">
+            <img src={heartIcon} alt="PV" />
+            <span className="adv-heart-val">{state.adventurerHealth}</span>
+          </div>
+        </div>
+        <StatChip icon={bootsIcon} base={state.baseStats.speed} energy={state.assignedEnergy.speed} left={state.phase === 'adventurer' ? speedLeft : null} />
+        <StatChip icon={swordIcon} base={state.baseStats.attack} energy={state.assignedEnergy.attack} left={state.phase === 'adventurer' ? attackLeft : null} />
+        <StatChip icon={shieldIcon} base={state.baseStats.defense} energy={state.assignedEnergy.defense} left={null} />
+        <StatChip icon={bowIcon} base={state.totalStats.range} energy={null} left={null} />
       </div>
 
       {/* Card zone: dungeon grid + monster strip, joined with no gap */}
@@ -591,11 +601,11 @@ function MovementArrows({ movements, cols, rows }: { movements: MovementArrow[];
 
 // ── Stat chip ─────────────────────────────────────────────────────────────────
 
-function StatChip({ label, base, energy, left }: { label: string; base: number; energy: number | null; left: number | null }) {
+function StatChip({ icon, base, energy, left }: { icon: string; base: number; energy: number | null; left: number | null }) {
   const total = base + (energy ?? 0);
   return (
     <div className="stat-chip">
-      <div className="stat-chip-label">{label}</div>
+      <img className="stat-chip-icon" src={icon} alt="" />
       <div className="stat-chip-total">{energy !== null ? total : base}</div>
       {energy !== null && <div className="stat-chip-detail">{base}+{energy}</div>}
       {left !== null && <div className="stat-chip-left">{left}←</div>}
