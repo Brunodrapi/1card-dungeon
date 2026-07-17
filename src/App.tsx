@@ -66,7 +66,9 @@ function rankLB(a: LBEntry, b: LBEntry): number {
   return (b.won ? 1 : 0) - (a.won ? 1 : 0) || b.level - a.level;
 }
 
-// Fetch fresh, insert entry (idempotent on retry), sort, keep top 20.
+// Fetch fresh, insert entry (idempotent on retry), sort.
+// Storage keeps EVERY victory (they feed the Hall of Fame) and only the
+// 20 best defeats; the display trims to the top 20 runs.
 // Returns the entry's rank (0-based) or -1 on failure.
 async function submitToLeaderboard(entry: LBEntry): Promise<number> {
   const lb = await loadLeaderboard();
@@ -75,7 +77,9 @@ async function submitToLeaderboard(entry: LBEntry): Promise<number> {
   if (!lb.some(same)) lb.push(entry); // idempotent on retry after silent success
   lb.sort(rankLB);
   const rank = lb.findIndex(same);
-  const ok = await saveLeaderboard(lb.slice(0, 20));
+  const wins = lb.filter(e => e.won);
+  const losses = lb.filter(e => !e.won).slice(0, 20);
+  const ok = await saveLeaderboard([...wins, ...losses]);
   return ok ? rank : -1;
 }
 
@@ -362,7 +366,7 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
           {lb === 'loading' && <div className="score-empty">Chargement…</div>}
           {lb === null && <div className="score-empty">Classement indisponible</div>}
           {Array.isArray(lb) && lb.length === 0 && <div className="score-empty">Aucun score — sois le premier !</div>}
-          {Array.isArray(lb) && lb.slice(0, 10).map((e, i) => (
+          {Array.isArray(lb) && lb.slice(0, 20).map((e, i) => (
             <div key={i} className={`score-row${e.won ? ' score-won' : ''}`}>
               <span className="score-rank">{i + 1}</span>
               <span className="score-icon">{CLASS_ICONS[e.cls] ?? '🗡️'}</span>
