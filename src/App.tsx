@@ -91,7 +91,7 @@ function buildLevelState(level: number, characterClass: CharacterClass, baseStat
     adventurerHealth: health,
     baseStats,
     energyDice: [0, 0, 0],
-    assignedEnergy: { speed: null, attack: null, defense: null },
+    assignedEnergy: { speed: null, attack: null, defense: null, range: null },
     totalStats: { ...baseStats },
     spentSpeed: 0,
     spentAttack: 0,
@@ -125,7 +125,7 @@ export default function App() {
     setGameState(prev => {
       if (!prev) return prev;
       const dice = rollDice(3);
-      return { ...prev, energyDice: dice, phase: 'energyAssign' as Phase, assignedEnergy: { speed: null, attack: null, defense: null }, selectedDie: null, log: [...prev.log.slice(-20), `Rolled: ${dice.join(', ')}`] };
+      return { ...prev, energyDice: dice, phase: 'energyAssign' as Phase, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, log: [...prev.log.slice(-20), `Rolled: ${dice.join(', ')}`] };
     });
   }, []);
 
@@ -133,14 +133,14 @@ export default function App() {
     setGameState(prev => {
       if (!prev || prev.classAbilityUsed) return prev;
       const dice = rollDice(3);
-      return { ...prev, energyDice: dice, assignedEnergy: { speed: null, attack: null, defense: null }, selectedDie: null, classAbilityUsed: true, log: [...prev.log.slice(-20), `Wizard rerolls: ${dice.join(', ')}`] };
+      return { ...prev, energyDice: dice, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, classAbilityUsed: true, log: [...prev.log.slice(-20), `Wizard rerolls: ${dice.join(', ')}`] };
     });
   }, []);
 
   const usePaladinKeep = useCallback(() => {
     setGameState(prev => {
       if (!prev || prev.classAbilityUsed || !prev.prevEnergyDice) return prev;
-      return { ...prev, energyDice: prev.prevEnergyDice, assignedEnergy: { speed: null, attack: null, defense: null }, selectedDie: null, classAbilityUsed: true, log: [...prev.log.slice(-20), `Paladin keeps: ${prev.prevEnergyDice.join(', ')}`] };
+      return { ...prev, energyDice: prev.prevEnergyDice, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, classAbilityUsed: true, log: [...prev.log.slice(-20), `Paladin keeps: ${prev.prevEnergyDice.join(', ')}`] };
     });
   }, []);
 
@@ -148,7 +148,7 @@ export default function App() {
     setGameState(prev => {
       if (!prev || prev.adventurerHealth !== 1 || prev.barbarianRerolled) return prev;
       const dice = rollDice(3);
-      return { ...prev, energyDice: dice, assignedEnergy: { speed: null, attack: null, defense: null }, selectedDie: null, barbarianRerolled: true, log: [...prev.log.slice(-20), `Barbarian rage: ${dice.join(', ')}`] };
+      return { ...prev, energyDice: dice, assignedEnergy: { speed: null, attack: null, defense: null, range: null }, selectedDie: null, barbarianRerolled: true, log: [...prev.log.slice(-20), `Barbarian rage: ${dice.join(', ')}`] };
     });
   }, []);
 
@@ -164,9 +164,9 @@ export default function App() {
       if (dieVal === -1) return prev;
       if (slot === 'range') {
         if (prev.characterClass !== 'ranger' || prev.classAbilityUsed) return prev;
-        const newBase = { ...prev.baseStats, range: prev.baseStats.range + dieVal };
         const newDice = [...prev.energyDice]; newDice[dieIdx] = -1;
-        return { ...prev, baseStats: newBase, energyDice: newDice, classAbilityUsed: true, selectedDie: null, log: [...prev.log.slice(-20), `Ranger: +${dieVal} Range → ${newBase.range}`] };
+        const newAssigned = { ...prev.assignedEnergy, range: dieVal };
+        return { ...prev, energyDice: newDice, assignedEnergy: newAssigned, classAbilityUsed: true, selectedDie: null, log: [...prev.log.slice(-20), `Ranger: +${dieVal} Range`] };
       }
       if (prev.assignedEnergy[slot] !== null) return prev;
       const newDice = [...prev.energyDice]; newDice[dieIdx] = -1;
@@ -180,7 +180,7 @@ export default function App() {
   }, []);
 
   // Return an assigned die to the pool (before confirming)
-  const unassignDie = useCallback((slot: 'speed' | 'attack' | 'defense') => {
+  const unassignDie = useCallback((slot: 'speed' | 'attack' | 'defense' | 'range') => {
     setGameState(prev => {
       if (!prev || prev.phase !== 'energyAssign') return prev;
       const val = prev.assignedEnergy[slot];
@@ -192,6 +192,8 @@ export default function App() {
       return {
         ...prev, energyDice: newDice,
         assignedEnergy: { ...prev.assignedEnergy, [slot]: null },
+        // returning the range die refunds the ranger's class ability
+        classAbilityUsed: slot === 'range' ? false : prev.classAbilityUsed,
         selectedDie: null,
         log: [...prev.log.slice(-20), `↩ ${slot} annulé`],
       };
@@ -286,7 +288,7 @@ export default function App() {
       const newHealth = prev.adventurerHealth - damage;
       const msg = attackingIds.length === 0 ? 'No monsters in range — safe!' : `${attackingIds.length} monster(s): ${attackingIds.length * prev.monsterStats.attack} ATK ÷ ${prev.totalStats.defense} DEF = ${damage} dmg`;
       if (newHealth <= 0) return { ...prev, adventurerHealth: 0, phase: 'gameOver', log: [...prev.log.slice(-20), msg, 'You have fallen…'] };
-      return { ...prev, adventurerHealth: newHealth, phase: 'energy', prevEnergyDice: [...prev.energyDice], energyDice: [0, 0, 0], assignedEnergy: { speed: null, attack: null, defense: null }, classAbilityUsed: false, log: [...prev.log.slice(-20), msg, '── new turn ──'] };
+      return { ...prev, adventurerHealth: newHealth, phase: 'energy', prevEnergyDice: [...prev.energyDice], energyDice: [0, 0, 0], assignedEnergy: { speed: null, attack: null, defense: null, range: null }, classAbilityUsed: false, log: [...prev.log.slice(-20), msg, '── new turn ──'] };
     });
   }, []);
 
@@ -446,7 +448,7 @@ interface GameScreenProps {
   state: GameState;
   rollEnergy: () => void; useWizardReroll: () => void; usePaladinKeep: () => void; useBarbarianReroll: () => void;
   selectDie: (i: number) => void; assignDie: (slot: 'speed' | 'attack' | 'defense' | 'range') => void;
-  unassignDie: (slot: 'speed' | 'attack' | 'defense') => void; confirmEnergy: () => void;
+  unassignDie: (slot: 'speed' | 'attack' | 'defense' | 'range') => void; confirmEnergy: () => void;
   handleTileClick: (pos: Pos) => void; handleMonsterClick: (id: number) => void;
   endAdventurerPhase: () => void;
   computeMonsterMove: () => void; confirmMonsterMove: () => void;
@@ -512,7 +514,7 @@ function GameScreen(props: GameScreenProps) {
         <StatChip icon={bootsIcon} base={state.baseStats.speed} energy={state.assignedEnergy.speed} left={state.phase === 'adventurer' ? speedLeft : null} />
         <StatChip icon={swordIcon} base={state.baseStats.attack} energy={state.assignedEnergy.attack} left={state.phase === 'adventurer' ? attackLeft : null} />
         <StatChip icon={shieldIcon} base={state.baseStats.defense} energy={state.assignedEnergy.defense} left={null} />
-        <StatChip icon={bowIcon} base={state.totalStats.range} energy={null} left={null} />
+        <StatChip icon={bowIcon} base={state.baseStats.range} energy={state.assignedEnergy.range} left={null} />
       </div>
 
       {/* Card zone: dungeon grid + monster strip, joined with no gap */}
@@ -699,7 +701,10 @@ function PhaseControls(props: GameScreenProps) {
               ? <button key={slot} className="btn btn-slot btn-slot-filled" onClick={() => props.unassignDie(slot)}>{icons[slot]} {val} ✕</button>
               : <button key={slot} className="btn btn-slot" disabled={state.selectedDie === null} onClick={() => props.assignDie(slot)}>{icons[slot]}</button>;
           })}
-          {state.characterClass === 'ranger' && !state.classAbilityUsed && state.selectedDie !== null && (
+          {state.characterClass === 'ranger' && ae.range !== null && (
+            <button className="btn btn-class" onClick={() => props.unassignDie('range')}>🏹 {ae.range} ✕</button>
+          )}
+          {state.characterClass === 'ranger' && ae.range === null && !state.classAbilityUsed && state.selectedDie !== null && (
             <button className="btn btn-class" onClick={() => props.assignDie('range')}>🏹+</button>
           )}
         </div>

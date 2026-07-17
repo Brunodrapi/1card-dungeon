@@ -40,6 +40,8 @@ export interface AssignedEnergy {
   speed: number | null;
   attack: number | null;
   defense: number | null;
+  /* Ranger class ability: a die assigned to range for this turn */
+  range: number | null;
 }
 
 export interface MovementArrow {

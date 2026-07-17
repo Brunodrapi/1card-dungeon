@@ -333,12 +333,12 @@ export function calcMonsterDamage(
 
 export function computeTotalStats(
   baseStats: BaseStats,
-  assigned: { speed: number | null; attack: number | null; defense: number | null }
+  assigned: { speed: number | null; attack: number | null; defense: number | null; range?: number | null }
 ): BaseStats {
   return {
     speed: baseStats.speed + (assigned.speed ?? 0),
     attack: baseStats.attack + (assigned.attack ?? 0),
     defense: baseStats.defense + (assigned.defense ?? 0),
-    range: baseStats.range,
+    range: baseStats.range + (assigned.range ?? 0),
   };
 }
