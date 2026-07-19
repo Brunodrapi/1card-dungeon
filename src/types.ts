@@ -125,4 +125,5 @@ export interface GameState {
   chestSpentThisTurn: number;           // points already added to that skill this turn
   knightSlot: 'speed' | 'attack' | 'defense' | null; // slot doubled by the knight
   necroTargeting: boolean;              // necromancer picking a sacrifice target
+  saveCode: string;                     // password to resume at this level's start
 }

@@ -99,6 +99,58 @@ async function submitToLeaderboard(entry: LBEntry): Promise<number> {
 
 const INITIAL_STATS: BaseStats = { speed: 1, attack: 1, defense: 1, range: 2 };
 
+// ── Save codes (retro password system) ───────────────────────────────────────
+// Encodes the state at the START of a level: level, class, base stats,
+// health, expansion — packed into bits + checksum, Crockford base32.
+const SAVE_CLASSES: CharacterClass[] = ['none', 'paladin', 'barbarian', 'ranger', 'wizard', 'necromancer', 'cleric', 'knight', 'rogue'];
+const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // no I, L, O, U
+
+interface SaveData { level: number; cls: CharacterClass; stats: BaseStats; health: number; expansion: boolean; }
+
+function encodeSave(d: SaveData): string {
+  const cap = (v: number) => Math.max(0, Math.min(15, v));
+  const fields = [
+    d.level,                       // 4 bits (1-12)
+    SAVE_CLASSES.indexOf(d.cls),   // 4 bits
+    d.health,                      // 3 bits (1-6)
+    cap(d.stats.speed), cap(d.stats.attack), cap(d.stats.defense), cap(d.stats.range), // 4 bits each
+  ];
+  let bits = d.expansion ? 1 : 0;
+  const widths = [4, 4, 3, 4, 4, 4, 4];
+  fields.forEach((f, i) => { bits = bits * (1 << widths[i]) + f; });
+  const checksum = fields.reduce((a, b) => a + b, d.expansion ? 1 : 0) % 32;
+  bits = bits * 32 + checksum;
+  let out = '';
+  for (let i = 0; i < 7; i++) { out = B32[bits % 32] + out; bits = Math.floor(bits / 32); }
+  return `${out.slice(0, 3)}-${out.slice(3)}`;
+}
+
+function decodeSave(codeRaw: string): SaveData | null {
+  const code = codeRaw.toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/I/g, '1').replace(/L/g, '1').replace(/O/g, '0');
+  if (code.length !== 7) return null;
+  let bits = 0;
+  for (const ch of code) {
+    const v = B32.indexOf(ch);
+    if (v === -1) return null;
+    bits = bits * 32 + v;
+  }
+  const checksum = bits % 32; bits = Math.floor(bits / 32);
+  const widths = [4, 4, 3, 4, 4, 4, 4];
+  const fields: number[] = [];
+  for (let i = widths.length - 1; i >= 0; i--) {
+    fields.unshift(bits % (1 << widths[i]));
+    bits = Math.floor(bits / (1 << widths[i]));
+  }
+  const expansion = bits === 1;
+  if (bits > 1) return null;
+  if (fields.reduce((a, b) => a + b, expansion ? 1 : 0) % 32 !== checksum) return null;
+  const [level, clsIdx, health, speed, attack, defense, range] = fields;
+  if (level < 1 || level > 12 || clsIdx >= SAVE_CLASSES.length || health < 1 || health > 6) return null;
+  const cls = SAVE_CLASSES[clsIdx];
+  if (!expansion && EXP_CLASSES.includes(cls)) return null;
+  return { level, cls, stats: { speed, attack, defense, range }, health, expansion };
+}
+
 function buildLevelState(level: number, characterClass: CharacterClass, baseStats: BaseStats, health: number, expansion: boolean): GameState {
   const def = LEVEL_DEFS[level - 1];
   const config = DUNGEON_CONFIGS[def.configIndex];
@@ -146,6 +198,7 @@ function buildLevelState(level: number, characterClass: CharacterClass, baseStat
     chestSpentThisTurn: 0,
     knightSlot: null,
     necroTargeting: false,
+    saveCode: encodeSave({ level, cls: characterClass, stats: baseStats, health, expansion }),
   };
 }
 
@@ -209,6 +262,17 @@ export default function App() {
   const startGame = useCallback((cls: CharacterClass, exp: boolean) => {
     setGameState(buildLevelState(1, cls, { ...INITIAL_STATS }, 6, exp));
     setScreen('game');
+  }, []);
+
+  // Resume from a save code (level start snapshot)
+  const loadGame = useCallback((code: string): boolean => {
+    const d = decodeSave(code);
+    if (!d) return false;
+    setCharacterClass(d.cls);
+    setExpansion(d.expansion);
+    setGameState(buildLevelState(d.level, d.cls, { ...d.stats }, d.health, d.expansion));
+    setScreen('game');
+    return true;
   }, []);
 
   const rollEnergy = useCallback(() => {
@@ -479,7 +543,7 @@ export default function App() {
     });
   }, []);
 
-  if (screen === 'title') return <TitleScreen onStart={() => setScreen('classSelect')} />;
+  if (screen === 'title') return <TitleScreen onStart={() => setScreen('classSelect')} onLoad={loadGame} />;
   if (screen === 'classSelect') return <ClassSelectScreen selected={characterClass} onSelect={setCharacterClass} expansion={expansion} onToggleExpansion={setExpansion} onConfirm={() => startGame(characterClass, expansion)} />;
   if (!gameState) return null;
 
@@ -529,9 +593,13 @@ function getConfig(state: GameState): DungeonConfig {
 
 // ── Title ─────────────────────────────────────────────────────────────────────
 
-function TitleScreen({ onStart }: { onStart: () => void }) {
+function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: string) => boolean }) {
   const [lb, setLb] = useState<LBEntry[] | null | 'loading'>('loading');
+  const [showLoad, setShowLoad] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeError, setCodeError] = useState(false);
   useEffect(() => { loadLeaderboard().then(setLb); }, []);
+  const tryLoad = () => { if (!onLoad(code)) setCodeError(true); };
   // Hall of fame: heroes who cleared the dungeon — 🏆 per base victory,
   // 👑 per expansion victory (M'Guf-yn slain)
   const fame: Array<[string, { base: number; exp: number }]> = Array.isArray(lb)
@@ -548,6 +616,25 @@ function TitleScreen({ onStart }: { onStart: () => void }) {
         <img className="title-cover" src={coverImg} alt="One Card Dungeon" />
         <p className="subtitle">Solo dungeon crawl · 12 levels</p>
         <button className="btn btn-primary btn-large" onClick={onStart}>Begin Adventure</button>
+        {!showLoad ? (
+          <button className="btn btn-secondary load-toggle" onClick={() => setShowLoad(true)}>💾 Reprendre avec un code</button>
+        ) : (
+          <div className="load-block">
+            <div className="name-entry">
+              <input
+                className="name-input load-input"
+                type="text"
+                maxLength={10}
+                placeholder="XXX-XXXX"
+                value={code}
+                onChange={e => { setCode(e.target.value.toUpperCase()); setCodeError(false); }}
+                onKeyDown={e => { if (e.key === 'Enter') tryLoad(); }}
+              />
+              <button className="btn btn-primary" disabled={!code.trim()} onClick={tryLoad}>Charger</button>
+            </div>
+            {codeError && <p className="save-error">Code invalide — vérifie et réessaie.</p>}
+          </div>
+        )}
         {fame.length > 0 && (
           <div className="score-list fame-list">
             <div className="score-heading">👑 Hall of Fame</div>
@@ -974,6 +1061,7 @@ function PhaseControls(props: GameScreenProps) {
     return (
       <div className="controls-inner">
         <button className="btn btn-primary btn-large" onClick={props.rollEnergy}>🎲 Roll Energy</button>
+        <div className="save-code">💾 Code niveau {state.level} : <b>{state.saveCode}</b></div>
         {state.characterClass === 'paladin' && state.prevEnergyDice && !state.classAbilityUsed && (
           <div className="paladin-keep">
             <span className="paladin-keep-label">🛡️ Keep a die, roll the other two:</span>
