@@ -383,7 +383,7 @@ export default function App() {
         // returning the range die refunds the ranger's class ability
         classAbilityUsed: slot === 'range' ? false : prev.classAbilityUsed,
         selectedDie: null,
-        log: [...prev.log.slice(-20), `↩ ${slot} annulé`],
+        log: [...prev.log.slice(-20), `↩ ${slot} returned`],
       };
     });
   }, []);
@@ -617,7 +617,7 @@ function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: 
         <p className="subtitle">Solo dungeon crawl · 12 levels</p>
         <button className="btn btn-primary btn-large" onClick={onStart}>Begin Adventure</button>
         {!showLoad ? (
-          <button className="btn btn-secondary load-toggle" onClick={() => setShowLoad(true)}>💾 Reprendre avec un code</button>
+          <button className="btn btn-secondary load-toggle" onClick={() => setShowLoad(true)}>💾 Resume with a code</button>
         ) : (
           <div className="load-block">
             <div className="name-entry">
@@ -630,9 +630,9 @@ function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: 
                 onChange={e => { setCode(e.target.value.toUpperCase()); setCodeError(false); }}
                 onKeyDown={e => { if (e.key === 'Enter') tryLoad(); }}
               />
-              <button className="btn btn-primary" disabled={!code.trim()} onClick={tryLoad}>Charger</button>
+              <button className="btn btn-primary" disabled={!code.trim()} onClick={tryLoad}>Load</button>
             </div>
-            {codeError && <p className="save-error">Code invalide — vérifie et réessaie.</p>}
+            {codeError && <p className="save-error">Invalid code — check it and try again.</p>}
           </div>
         )}
         {fame.length > 0 && (
@@ -650,10 +650,10 @@ function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: 
           </div>
         )}
         <div className="score-list">
-          <div className="score-heading">Meilleurs runs</div>
-          {lb === 'loading' && <div className="score-empty">Chargement…</div>}
-          {lb === null && <div className="score-empty">Classement indisponible</div>}
-          {Array.isArray(lb) && lb.length === 0 && <div className="score-empty">Aucun score — sois le premier !</div>}
+          <div className="score-heading">Best runs</div>
+          {lb === 'loading' && <div className="score-empty">Loading…</div>}
+          {lb === null && <div className="score-empty">Leaderboard unavailable</div>}
+          {Array.isArray(lb) && lb.length === 0 && <div className="score-empty">No scores yet — be the first!</div>}
           {Array.isArray(lb) && lb.slice(0, 20).map((e, i) => (
             <div key={i} className={`score-row${e.won ? ' score-won' : ''}`}>
               <span className="score-rank">{i + 1}</span>
@@ -693,8 +693,8 @@ function ClassSelectScreen({ selected, onSelect, expansion, onToggleExpansion, o
       </div>
       <button className={`exp-toggle${expansion ? ' exp-on' : ''}`} onClick={() => { if (expansion && EXP_CLASSES.includes(selected)) onSelect('none'); onToggleExpansion(!expansion); }}>
         <span className="exp-toggle-box">{expansion ? '✔' : ''}</span>
-        <span className="exp-toggle-label">😈 Extension M'Guf-yn Returns</span>
-        <span className="exp-toggle-desc">Boss, coffres au trésor & nouvelles classes</span>
+        <span className="exp-toggle-label">😈 M'Guf-yn Returns Expansion</span>
+        <span className="exp-toggle-desc">Bosses, treasure chests & new classes</span>
       </button>
       {expansion && (
         <div className="class-grid class-grid-exp">
@@ -745,7 +745,7 @@ function EndScreen({ won, level, cls, exp, onRestart }: { won: boolean; level: n
         <p className="end-subtitle">{won ? (exp ? "M'Guf-yn is defeated — the world is saved!" : "The Sceptre of M'Guf-yn is yours!") : 'Your hero has fallen.'}</p>
         {!won && <p>You reached level {level}.</p>}
         {status === 'saved' ? (
-          <p className="save-confirm">✓ Score enregistré — {name.trim()}{rank >= 0 && rank < 20 ? ` · #${rank + 1} au classement` : ''}</p>
+          <p className="save-confirm">✓ Score saved — {name.trim()}{rank >= 0 && rank < 20 ? ` · #${rank + 1} on the leaderboard` : ''}</p>
         ) : (
           <div className="name-entry-block">
             <div className="name-entry">
@@ -753,17 +753,17 @@ function EndScreen({ won, level, cls, exp, onRestart }: { won: boolean; level: n
                 className="name-input"
                 type="text"
                 maxLength={16}
-                placeholder="Ton pseudo"
+                placeholder="Your name"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') save(); }}
                 disabled={status === 'saving'}
               />
               <button className="btn btn-primary" disabled={!name.trim() || status === 'saving'} onClick={save}>
-                {status === 'saving' ? '…' : status === 'error' ? 'Réessayer' : 'Enregistrer'}
+                {status === 'saving' ? '…' : status === 'error' ? 'Retry' : 'Save score'}
               </button>
             </div>
-            {status === 'error' && <p className="save-error">Impossible d'enregistrer en ligne — réessaie.</p>}
+            {status === 'error' && <p className="save-error">Could not save online — please retry.</p>}
           </div>
         )}
         <button className="btn btn-secondary" onClick={onRestart}>{won ? 'Play Again' : 'New Run'}</button>
@@ -1051,6 +1051,23 @@ function DungeonGrid({ config, state, reachable, attackable, inRangeMonsters, ch
   );
 }
 
+// ── Save code chip (click to copy) ────────────────────────────────────────────
+
+function SaveCodeChip({ level, code }: { level: number; code: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  };
+  return (
+    <button className="save-code" onClick={copy} title="Copy to clipboard">
+      💾 Level {level} code: <b>{code}</b> {copied ? <span className="save-code-copied">✓ copied!</span> : <span className="save-code-hint">tap to copy</span>}
+    </button>
+  );
+}
+
 // ── Phase Controls ────────────────────────────────────────────────────────────
 
 function PhaseControls(props: GameScreenProps) {
@@ -1061,7 +1078,7 @@ function PhaseControls(props: GameScreenProps) {
     return (
       <div className="controls-inner">
         <button className="btn btn-primary btn-large" onClick={props.rollEnergy}>🎲 Roll Energy</button>
-        <div className="save-code">💾 Code niveau {state.level} : <b>{state.saveCode}</b></div>
+        <SaveCodeChip level={state.level} code={state.saveCode} />
         {state.characterClass === 'paladin' && state.prevEnergyDice && !state.classAbilityUsed && (
           <div className="paladin-keep">
             <span className="paladin-keep-label">🛡️ Keep a die, roll the other two:</span>
@@ -1116,7 +1133,7 @@ function PhaseControls(props: GameScreenProps) {
             </div>
           </div>
         )}
-        {ready && <button className="btn btn-primary btn-large" onClick={props.confirmEnergy}>Valider →</button>}
+        {ready && <button className="btn btn-primary btn-large" onClick={props.confirmEnergy}>Confirm →</button>}
         {state.characterClass === 'wizard' && !state.classAbilityUsed && (
           <button className="btn btn-class" onClick={props.useWizardReroll}>🔮 Reroll all</button>
         )}
