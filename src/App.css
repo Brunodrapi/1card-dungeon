@@ -384,6 +384,7 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
 .save-code b { color: var(--gold-l); font-family: 'PixelNum', monospace; font-size: .78rem; letter-spacing: .06em; }
 .save-code-copied { color: var(--green); font-weight: 700; }
 .save-code-hint { color: var(--dim); font-size: .62rem; font-style: italic; }
+.save-hint { color: var(--blue-l); font-size: .75rem; }
 .load-toggle { width: 100%; }
 .load-block { display: flex; flex-direction: column; gap: .35rem; width: 100%; align-items: center; }
 .load-input { text-transform: uppercase; letter-spacing: .12em; font-family: 'PixelNum', monospace; font-size: .85rem; text-align: center; }

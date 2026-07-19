@@ -598,8 +598,17 @@ function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: 
   const [showLoad, setShowLoad] = useState(false);
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState(false);
+  const [fromClipboard, setFromClipboard] = useState(false);
   useEffect(() => { loadLeaderboard().then(setLb); }, []);
   const tryLoad = () => { if (!onLoad(code)) setCodeError(true); };
+  // Opening the load form offers a valid save code found in the clipboard
+  const openLoad = async () => {
+    setShowLoad(true);
+    try {
+      const t = await navigator.clipboard.readText();
+      if (t && decodeSave(t)) { setCode(t.trim().toUpperCase()); setFromClipboard(true); }
+    } catch { /* clipboard unavailable or permission denied — ignore */ }
+  };
   // Hall of fame: heroes who cleared the dungeon — 🏆 per base victory,
   // 👑 per expansion victory (M'Guf-yn slain)
   const fame: Array<[string, { base: number; exp: number }]> = Array.isArray(lb)
@@ -617,7 +626,7 @@ function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: 
         <p className="subtitle">Solo dungeon crawl · 12 levels</p>
         <button className="btn btn-primary btn-large" onClick={onStart}>Begin Adventure</button>
         {!showLoad ? (
-          <button className="btn btn-secondary load-toggle" onClick={() => setShowLoad(true)}>💾 Resume with a code</button>
+          <button className="btn btn-secondary load-toggle" onClick={openLoad}>💾 Resume with a code</button>
         ) : (
           <div className="load-block">
             <div className="name-entry">
@@ -627,11 +636,12 @@ function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: 
                 maxLength={10}
                 placeholder="XXX-XXXX"
                 value={code}
-                onChange={e => { setCode(e.target.value.toUpperCase()); setCodeError(false); }}
+                onChange={e => { setCode(e.target.value.toUpperCase()); setCodeError(false); setFromClipboard(false); }}
                 onKeyDown={e => { if (e.key === 'Enter') tryLoad(); }}
               />
               <button className="btn btn-primary" disabled={!code.trim()} onClick={tryLoad}>Load</button>
             </div>
+            {fromClipboard && !codeError && <p className="save-hint">📋 Code found in your clipboard</p>}
             {codeError && <p className="save-error">Invalid code — check it and try again.</p>}
           </div>
         )}
