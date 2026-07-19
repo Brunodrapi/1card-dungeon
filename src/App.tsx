@@ -600,14 +600,14 @@ function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: 
   const [codeError, setCodeError] = useState(false);
   const [fromClipboard, setFromClipboard] = useState(false);
   useEffect(() => { loadLeaderboard().then(setLb); }, []);
-  const [pasteFailed, setPasteFailed] = useState(false);
+  const [pasteMsg, setPasteMsg] = useState<'' | 'nocode' | 'denied'>('');
   const tryLoad = () => { if (!onLoad(code)) setCodeError(true); };
-  const readClipboard = async (): Promise<boolean> => {
+  const readClipboard = async (): Promise<'ok' | 'nocode' | 'denied'> => {
     try {
       const t = await navigator.clipboard.readText();
-      if (t && decodeSave(t)) { setCode(t.trim().toUpperCase()); setFromClipboard(true); setCodeError(false); return true; }
-    } catch { /* clipboard unavailable or permission denied */ }
-    return false;
+      if (t && decodeSave(t)) { setCode(t.trim().toUpperCase()); setFromClipboard(true); setCodeError(false); setPasteMsg(''); return 'ok'; }
+      return 'nocode';
+    } catch { return 'denied'; }
   };
   // Opening the form silently offers a same-site copy; cross-app copies need
   // the explicit Paste button (iOS only allows silent reads of self-written
@@ -617,7 +617,10 @@ function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: 
     await readClipboard();
   };
   const pasteClick = async () => {
-    setPasteFailed(!(await readClipboard()));
+    // Field already holds a valid code? Nothing to fetch — keep it.
+    if (code.trim() && decodeSave(code)) { setCodeError(false); setPasteMsg(''); return; }
+    const r = await readClipboard();
+    if (r !== 'ok') setPasteMsg(r);
   };
   // Hall of fame: heroes who cleared the dungeon — 🏆 per base victory,
   // 👑 per expansion victory (M'Guf-yn slain)
@@ -646,14 +649,15 @@ function TitleScreen({ onStart, onLoad }: { onStart: () => void; onLoad: (code: 
                 maxLength={10}
                 placeholder="XXX-XXXX"
                 value={code}
-                onChange={e => { setCode(e.target.value.toUpperCase()); setCodeError(false); setFromClipboard(false); }}
+                onChange={e => { setCode(e.target.value.toUpperCase()); setCodeError(false); setFromClipboard(false); setPasteMsg(''); }}
                 onKeyDown={e => { if (e.key === 'Enter') tryLoad(); }}
               />
               <button className="btn btn-secondary" onClick={pasteClick}>📋</button>
               <button className="btn btn-primary" disabled={!code.trim()} onClick={tryLoad}>Load</button>
             </div>
             {fromClipboard && !codeError && <p className="save-hint">📋 Code found in your clipboard</p>}
-            {pasteFailed && !fromClipboard && <p className="save-hint">No valid code in the clipboard — long-press the field to paste manually.</p>}
+            {pasteMsg === 'nocode' && !fromClipboard && <p className="save-hint">No save code found in the clipboard.</p>}
+            {pasteMsg === 'denied' && !fromClipboard && <p className="save-hint">Clipboard blocked by the browser — long-press the field and choose Paste.</p>}
             {codeError && <p className="save-error">Invalid code — check it and try again.</p>}
           </div>
         )}
